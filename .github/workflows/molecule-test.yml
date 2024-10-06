@@ -1,5 +1,9 @@
 name: Molecule Test
 on:
+  push:
+    branches:
+      - main
+      - develop
   pull_request:
     branches:
       - main
@@ -11,7 +15,7 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: [3.7, 3.8]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v3 # 最新バージョンに更新
@@ -33,6 +37,24 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt  # 依存関係を一度にインストール
 
+      - name: Install required Ansible collections
+        run: |
+          ansible-galaxy collection install community.general
+
       - name: Test with molecule
         run: |
           molecule test  # ルートディレクトリで実行
+
+  release:
+    if: github.ref == 'refs/heads/main' # mainブランチの場合のみ実行
+    needs: build # buildジョブが成功した後に実行
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Ansible Galaxy release
+        uses: robertdebock/galaxy-action@1.2.0
+        with:
+          galaxy_api_key: ${{ secrets.galaxy_api_key }}
+          version: ${{ github.ref_name }} # タグ名を使用してバージョンを指定
+
