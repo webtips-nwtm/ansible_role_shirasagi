@@ -1,0 +1,38 @@
+name: Molecule Test
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: [3.7, 3.8]
+
+    steps:
+      - uses: actions/checkout@v3 # 最新バージョンに更新
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4 # 最新バージョンに更新
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v3 # 最新バージョンに更新
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt  # 依存関係を一度にインストール
+
+      - name: Test with molecule
+        run: |
+          molecule test  # ルートディレクトリで実行
