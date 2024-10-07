@@ -23,4 +23,4 @@ provisioner:
   log: true
   playbooks:
     converge: converge.yml
-    verify: tests/test.yml
+    verify: verify.yml
