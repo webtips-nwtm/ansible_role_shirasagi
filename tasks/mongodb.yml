@@ -47,7 +47,7 @@
 
 - name: Check if a .org backup file already exists
   ansible.builtin.stat:
-    path: "{{ backup_file }}"
+    path: /usr/lib/systemd/system/mongod.service.org
   register: backup_file_stat
 
 - name: Backup the existing mongod.service file
@@ -57,6 +57,7 @@
     remote_src: yes
     backup: no
   when: not backup_file_stat.stat.exists # バックアップファイルが存在しない場合にのみ実行
+  changed_when: false # 変更されたと見なさない
 
 - name: Check if we have write permissions to the file
   ansible.builtin.stat:
