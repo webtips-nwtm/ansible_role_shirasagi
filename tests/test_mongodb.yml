@@ -1,0 +1,63 @@
+---
+- name: Test MongoDB role
+  hosts: all
+  become: true
+  tasks:
+    - name: Check if MongoDB repository is configured
+      ansible.builtin.shell: "yum repolist | grep '^mongodb-org-{{ mongodb_version }}'"
+      register: repo_check
+      failed_when: false
+      changed_when: false
+      become: true
+      when: ansible_os_family == "RedHat"
+
+    - name: Assert MongoDB repository is present
+      ansible.builtin.assert:
+        that:
+          - repo_check.rc == 0
+      when: ansible_os_family == "RedHat"
+
+    - name: Verify MongoDB package installation
+      ansible.builtin.package_facts:
+      register: mongo_pkg
+      become: true
+
+    - name: Assert MongoDB is installed
+      ansible.builtin.assert:
+        that:
+          - "'mongodb-org' in mongo_pkg.packages"
+      become: true
+
+    - name: Verify if mongod service is running
+      ansible.builtin.shell: systemctl is-active mongod
+      register: mongo_service_status
+      failed_when: false
+      changed_when: false
+
+    - name: Assert mongod service is active
+      ansible.builtin.assert:
+        that:
+          - mongo_service_status.stdout == "active"
+
+    - name: Verify OOMScoreAdjust configuration
+      ansible.builtin.command: grep 'OOMScoreAdjust=-1000' /usr/lib/systemd/system/mongod.service
+      register: oom_check
+      failed_when: false
+      changed_when: false
+      become: true
+
+    - name: Assert OOMScoreAdjust is set correctly
+      ansible.builtin.assert:
+        that:
+          - oom_check.rc == 0
+
+    - name: Verify MongoDB detailed status
+      ansible.builtin.command: systemctl status mongod
+      register: mongo_detailed_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Debug MongoDB detailed status
+      ansible.builtin.debug:
+        var: mongo_detailed_status.stdout_lines

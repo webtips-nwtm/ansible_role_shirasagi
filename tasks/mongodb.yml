@@ -1,0 +1,115 @@
+---
+- name: Configure MongoDB repository
+  block:
+    - name: Check if MongoDB repository is already added for RedHat
+      ansible.builtin.shell: "yum repolist | grep -q '^mongodb-org-{{ mongodb_version }}'"
+      register: yum_repo_check
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "RedHat"
+
+    - name: Get system architecture
+      ansible.builtin.setup:
+        filter: ansible_architecture
+      register: arch_info
+      changed_when: false # 冪等性の確保
+      failed_when: arch_info is not defined # アーキテクチャ情報が取得できない場合のみ失敗
+
+    - name: Debug system architecture information
+      ansible.builtin.debug:
+        msg: "System architecture: {{ arch_info.ansible_facts.ansible_architecture }}"
+
+    - name: Set architecture variable
+      ansible.builtin.set_fact:
+        architecture: "{{ arch_info.ansible_facts.ansible_architecture }}"
+      when: ansible_os_family == "RedHat"
+
+- name: Configure MongoDB repository
+  block:
+    - name: Add MongoDB repository for RedHat
+      ansible.builtin.yum_repository:
+        name: "mongodb-org-{{ mongodb_version }}"
+        description: "MongoDB Repository"
+        baseurl: "https://repo.mongodb.org/yum/redhat/9/mongodb-org/{{ mongodb_version }}/{{ architecture }}/"
+        gpgcheck: yes
+        enabled: yes
+        gpgkey: "https://www.mongodb.org/static/pgp/server-{{ mongodb_version }}.asc"
+      when: ansible_os_family == "RedHat"
+
+- name: Install MongoDB
+  ansible.builtin.package:
+    name: "mongodb-org"
+    state: present
+
+- name: Set backup file name to mongod.service.org
+  ansible.builtin.set_fact:
+    backup_file: "/usr/lib/systemd/system/mongod.service.org"
+
+- name: Check if a .org backup file already exists
+  ansible.builtin.stat:
+    path: "{{ backup_file }}"
+  register: backup_file_stat
+
+- name: Check if we have write permissions to the file
+  ansible.builtin.stat:
+    path: "{{ backup_file }}"
+    get_attributes: yes
+  register: file_permission_check
+  when: backup_file_stat.stat.exists
+
+- name: Debug file permission and ownership
+  ansible.builtin.debug:
+    msg: "File permissions: {{ file_permission_check.stat.mode }}, Owner: {{ file_permission_check.stat.pw_name }}"
+  when: backup_file_stat.stat.exists
+
+- name: Remove existing .org backup file if it exists and we have permissions
+  ansible.builtin.file:
+    path: "{{ backup_file }}"
+    state: absent
+  when:
+    - backup_file_stat.stat.exists
+    - file_permission_check.stat.mode is defined
+    - "'w' in file_permission_check.stat.mode"
+  become: true # 権限不足の場合に管理者権限で削除
+
+- name: Backup the existing mongod.service file
+  ansible.builtin.copy:
+    src: /usr/lib/systemd/system/mongod.service
+    dest: "{{ backup_file }}"
+    remote_src: yes # リモートホスト上のファイルを指定
+    backup: no # 手動でバックアップを取るため 'backup: no' を指定します
+
+- name: Ensure OOMScoreAdjust is set in mongod.service
+  ansible.builtin.lineinfile:
+    path: /usr/lib/systemd/system/mongod.service
+    line: "OOMScoreAdjust=-1000"
+    insertafter: "[Service]"
+
+- name: Reload systemd to apply changes
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+# MongoDBのステータスを確認
+- name: Check MongoDB status
+  ansible.builtin.command: systemctl is-active mongod
+  register: mongodb_status
+  failed_when: false # MongoDBが失敗している場合にも続行
+  changed_when: false
+
+# MongoDBの詳細ステータスを確認
+- name: Debug MongoDB status
+  ansible.builtin.command: systemctl status mongod
+  register: mongodb_detailed_status
+  changed_when: false
+  failed_when: false
+
+# MongoDBの詳細な状態をデバッグ表示
+- name: Show detailed MongoDB status for debugging
+  ansible.builtin.debug:
+    var: mongodb_detailed_status.stdout_lines
+
+- name: Start MongoDB if not already running
+  ansible.builtin.systemd:
+    name: mongod
+    state: started
+  when: mongodb_status.stdout != "active" # 正しいステータスを確認して条件を修正

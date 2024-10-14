@@ -1,10 +1,11 @@
 ---
-#asdf
+#asdf settings
 asdf_version: "v0.14.0"
 ruby_version: "3.2.5"
 nodejs_version: "20.17.0"
 yarn_version: "1.22.22"
-#mecab
+
+#mecab settings
 src_dir: "/usr/local/src"
 urls:
   - {
@@ -23,3 +24,8 @@ urls:
       name: "mecab-ipadic-2.7.0-20070801.patch",
       url: "https://raw.githubusercontent.com/shirasagi/shirasagi/stable/vendor/mecab/mecab-ipadic-2.7.0-20070801.patch",
     }
+
+# Shirasagi settings
+shirasagi_branch: "stable"
+shirasagi_repo: "https://github.com/shirasagi/shirasagi.git"
+dest_dir: "/var/www/shirasagi"
