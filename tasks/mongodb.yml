@@ -1,13 +1,6 @@
 ---
 - name: Configure MongoDB repository
   block:
-    - name: Check if MongoDB repository is already added for RedHat
-      ansible.builtin.shell: "yum repolist | grep -q '^mongodb-org-{{ mongodb_version }}'"
-      register: yum_repo_check
-      failed_when: false
-      changed_when: false
-      when: ansible_os_family == "RedHat"
-
     - name: Get system architecture
       ansible.builtin.setup:
         filter: ansible_architecture
@@ -24,8 +17,6 @@
         architecture: "{{ arch_info.ansible_facts.ansible_architecture }}"
       when: ansible_os_family == "RedHat"
 
-- name: Configure MongoDB repository
-  block:
     - name: Add MongoDB repository for RedHat
       ansible.builtin.yum_repository:
         name: "mongodb-org-{{ mongodb_version }}"
@@ -66,20 +57,15 @@
   register: file_permission_check
   when: backup_file_stat.stat.exists
 
-- name: Debug file permission and ownership
-  ansible.builtin.debug:
-    msg: "File permissions: {{ file_permission_check.stat.mode }}, Owner: {{ file_permission_check.stat.pw_name }}"
-  when: backup_file_stat.stat.exists
-
-- name: Remove existing .org backup file if it exists and we have permissions
+- name: Remove existing .org backup file if it exists and we have write permissions
   ansible.builtin.file:
     path: "{{ backup_file }}"
     state: absent
   when:
     - backup_file_stat.stat.exists
-    - file_permission_check.stat.mode is defined
-    - "'w' in file_permission_check.stat.mode"
-  become: true # 権限不足の場合に管理者権限で削除
+    - file_permission_check.stat.attributes is defined
+    - "'w' in file_permission_check.stat.attributes"
+  become: true
 
 - name: Backup the existing mongod.service file
   ansible.builtin.copy:
@@ -101,25 +87,20 @@
 
 # MongoDBのステータスを確認
 - name: Check MongoDB status
-  ansible.builtin.command: systemctl is-active mongod
+  ansible.builtin.systemd:
+    name: mongod
+    state: started
   register: mongodb_status
-  failed_when: false # MongoDBが失敗している場合にも続行
   changed_when: false
-
-# MongoDBの詳細ステータスを確認
-- name: Debug MongoDB status
-  ansible.builtin.command: systemctl status mongod
-  register: mongodb_detailed_status
-  changed_when: false
-  failed_when: false
 
 # MongoDBの詳細な状態をデバッグ表示
 - name: Show detailed MongoDB status for debugging
   ansible.builtin.debug:
-    var: mongodb_detailed_status.stdout_lines
+    var: mongodb_status
 
+# MongoDBがまだアクティブでない場合のみ起動
 - name: Start MongoDB if not already running
   ansible.builtin.systemd:
     name: mongod
     state: started
-  when: mongodb_status.stdout != "active" # MongoDBがactiveでない場合にのみ起動
+  changed_when: false
