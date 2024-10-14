@@ -23,7 +23,6 @@
           - which
           - git
           - tar
-          #- curl
           - gcc
           - make
           - bzip2
@@ -38,48 +37,53 @@
 
 - name: Check if asdf is already installed
   ansible.builtin.stat:
-    path: ~/.asdf
+    path: /root/.asdf
   register: asdf_installed
 
 - name: Clone asdf repository
   ansible.builtin.git:
     repo: "https://github.com/asdf-vm/asdf.git"
-    dest: ~/.asdf
+    dest: /root/.asdf
     version: "{{ asdf_version }}"
   when: not asdf_installed.stat.exists
+  become: true
 
 - name: Add asdf to shell
   ansible.builtin.shell: |
-    echo -e '\n. $HOME/.asdf/asdf.sh' >> ~/.bashrc
-    echo -e '\n. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc
+    echo -e '\n. /root/.asdf/asdf.sh' >> /root/.bashrc
+    echo -e '\n. /root/.asdf/completions/asdf.bash' >> /root/.bashrc
   args:
     executable: /bin/bash
   when: not asdf_installed.stat.exists
+  become: true
 
 - name: Source asdf in current session
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh
+    . /root/.asdf/asdf.sh
   args:
     executable: /bin/bash
   changed_when: false
+  become: true
 
 - name: Check if Ruby plugin is installed
-  command: ~/.asdf/bin/asdf plugin-list
+  command: /root/.asdf/bin/asdf plugin-list
   register: ruby_plugin_check
   changed_when: false
+  become: true
 
 - name: Install Ruby plugin if not installed
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf plugin-add ruby https://github.com/asdf-vm/asdf-ruby.git
+    . /root/.asdf/asdf.sh && asdf plugin-add ruby https://github.com/asdf-vm/asdf-ruby.git
   args:
     executable: /bin/bash
   when: "'ruby' not in ruby_plugin_check.stdout_lines"
   become: true
 
 - name: Check if Ruby {{ ruby_version }} is installed
-  command: ~/.asdf/bin/asdf list
+  command: /root/.asdf/bin/asdf list
   register: ruby_check
   changed_when: false
+  become: true
 
 - name: Install Ruby {{ ruby_version }} if not installed
   ansible.builtin.shell: |
