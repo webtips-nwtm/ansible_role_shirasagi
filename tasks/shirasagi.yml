@@ -98,17 +98,28 @@
   failed_when: false
   changed_when: false
 
+- name: Check if bundler is installed
+  ansible.builtin.shell: |
+    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && gem list bundler -i
+  args:
+    executable: /bin/bash
+  register: bundler_check
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: root
+
 - name: Install bundler if not installed
   ansible.builtin.shell: |
     export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && gem install bundler
   args:
     executable: /bin/bash
-  when: bundler_check.rc != 0
+  when: bundler_check.stdout.find('true') == -1
   become: true
   become_user: root
 
-- name: Check permissions of /var/www/shirasagi
-  ansible.builtin.command: ls -ld /var/www/shirasagi
+# - name: Check permissions of /var/www/shirasagi
+#   ansible.builtin.command: ls -ld /var/www/shirasagi
 
 - name: Fix permissions of /var/www/shirasagi
   ansible.builtin.file:
