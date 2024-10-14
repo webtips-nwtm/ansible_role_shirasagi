@@ -153,12 +153,25 @@
     daemon_reload: yes
   changed_when: false # 冪等性を確保
 
-- name: Enable and start unicorn.service
-  systemd:
-    name: unicorn.service
-    enabled: yes
-    state: started
-  changed_when: false # 冪等性を確保
+- name: Check status of unicorn.service
+  ansible.builtin.command: systemctl status unicorn.service
+  register: unicorn_status
+  changed_when: false # 状態確認なので変更があったと見なさない
+
+- name: Show unicorn service status for debugging
+  ansible.builtin.debug:
+    var: unicorn_status.stdout_lines
+  changed_when: false # デバッグなので変更があったと見なさない
+
+- name: Show detailed log of unicorn.service for debugging
+  ansible.builtin.command: journalctl -xeu unicorn.service
+  register: unicorn_journal
+  changed_when: false # ログの確認は変更を伴わないので
+
+- name: Display detailed log of unicorn.service
+  ansible.builtin.debug:
+    var: unicorn_journal.stdout_lines
+  changed_when: false # デバッグなので変更があったと見なさない
 
 - name: Enable and start shirasagi-job.service
   systemd:
