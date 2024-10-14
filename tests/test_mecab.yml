@@ -1,97 +1,121 @@
 ---
-- name: Test MeCab role
+- name: Test MeCab and MeCab Ruby installation
   hosts: all
-  gather_facts: false
+  become: true
+  vars_files:
+    - ../vars/main.yml # 明示的に変数ファイルを読み込む
+
   tasks:
-    - name: Verify Development Tools are installed
-      command: rpm -q gcc
-      register: dev_tools
-      changed_when: false
+    - name: Ensure Development Tools group is installed
+      ansible.builtin.dnf:
+        name: "@Development Tools"
+        state: present
 
-    - name: Assert Development Tools installation
-      assert:
-        that:
-          - dev_tools.rc == 0
+    - name: Ensure required packages for build are installed
+      ansible.builtin.dnf:
+        name:
+          - wget
+        state: present
 
-    - name: Verify wget is installed
-      command: rpm -q wget
-      register: wget_installed
-      changed_when: false
+    - name: Install MeCab and related packages
+      ansible.builtin.dnf:
+        name:
+          - mecab
+          - mecab-devel
+        state: present
+        enablerepo:
+          - epel
+          - crb
 
-    - name: Assert wget installation
-      assert:
-        that:
-          - wget_installed.rc == 0
+    - name: Download MeCab packages
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "/usr/local/src/{{ item.tar_name }}"
+      loop: "{{ mecab_packages }}"
 
-    - name: Verify MeCab is installed
-      command: rpm -q mecab
-      register: mecab_installed
-      changed_when: false
+    - name: Install MeCab packages
+      block:
+        - name: Extract MeCab package
+          ansible.builtin.unarchive:
+            src: "/usr/local/src/{{ item.tar_name }}"
+            dest: "/usr/local/src"
+            remote_src: yes
+            creates: "/usr/local/src/{{ item.tar_name | replace('.tar.gz', '') }}"
+          loop: "{{ mecab_packages }}"
+          loop_control:
+            loop_var: item
 
-    - name: Assert MeCab installation
-      assert:
-        that:
-          - mecab_installed.rc == 0
+        - name: Check if the patch is already applied
+          shell: "patch --dry-run -p1 < /usr/local/src/{{ item.patch }}"
+          args:
+            chdir: "/usr/local/src/{{ item.tar_name | replace('.tar.gz', '') }}"
+          when: item.patch is defined
+          register: patch_check
+          failed_when: "'Skipping patch.' not in patch_check.stdout and patch_check.rc != 0"
+          changed_when: "'Skipping patch.' not in patch_check.stdout"
+          loop: "{{ mecab_packages }}"
+          loop_control:
+            loop_var: item
 
-    - name: Verify MeCab IPADIC is installed
-      stat:
-        path: /usr/local/src/mecab-ipadic-2.7.0-20070801
-      register: mecab_ipadic
+        - name: Apply the patch if it's not already applied
+          shell: "patch -p1 < /usr/local/src/{{ item.patch }}"
+          args:
+            chdir: "/usr/local/src/{{ item.tar_name | replace('.tar.gz', '') }}"
+          when:
+            - item.patch is defined
+            - patch_check.stdout is defined
+            - "'Skipping patch.' not in patch_check.stdout"
+          register: patch_apply_result
+          changed_when: "'Skipping patch.' not in patch_apply_result.stdout"
+          loop: "{{ mecab_packages }}"
+          loop_control:
+            loop_var: item
 
-    - name: Assert MeCab IPADIC installation
-      assert:
-        that:
-          - mecab_ipadic.stat.exists
+        - name: Run configure for MeCab packages
+          block:
+            - name: Run configure for standard MeCab packages
+              ansible.builtin.command: "./configure {{ item.configure_options }}"
+              args:
+                chdir: "/usr/local/src/{{ item.tar_name | replace('.tar.gz', '') }}"
+              when:
+                - item.name != "MeCab Ruby" # MeCab Ruby 以外の場合にのみ ./configure を実行
+              loop: "{{ mecab_packages }}"
+              loop_control:
+                loop_var: item
 
-    # デバッグタスク1: MeCab.soの場所を確認
-    - name: Verify location of MeCab Ruby binding (MeCab.so)
-      command: find / -name "MeCab.so"
-      register: mecab_so_location
-      changed_when: false
+            - name: Generate Makefile for MeCab Ruby
+              shell: |
+                . ~/.asdf/asdf.sh
+                ruby extconf.rb
+              args:
+                chdir: "/usr/local/src/mecab-ruby-0.996"
+              when: item.name == "MeCab Ruby"
+              loop: "{{ mecab_packages }}"
+              loop_control:
+                loop_var: item
 
-    - name: Debug MeCab.so location
-      debug:
-        msg: "MeCab.so found at: {{ mecab_so_location.stdout_lines }}"
+        - name: Build MeCab packages
+          ansible.builtin.shell: "make"
+          args:
+            chdir: "/usr/local/src/{{ item.tar_name | replace('.tar.gz', '') }}"
+          loop: "{{ mecab_packages }}"
+          loop_control:
+            loop_var: item
 
-    # デバッグタスク2: RubyのGEM_PATHを確認
-    - name: Check Ruby GEM_PATH
-      ansible.builtin.shell: |
-        . ~/.asdf/asdf.sh && ruby -e 'puts ENV["GEM_PATH"]'
-      register: gem_path
-      changed_when: false
+        - name: Install MeCab packages
+          ansible.builtin.shell: "make install"
+          args:
+            chdir: "/usr/local/src/{{ item.tar_name | replace('.tar.gz', '') }}"
+          loop: "{{ mecab_packages }}"
+          loop_control:
+            loop_var: item
 
-    - name: Debug Ruby GEM_PATH
-      debug:
-        msg: "Ruby GEM_PATH: {{ gem_path.stdout }}"
+    - name: Update shared library cache
+      ansible.builtin.lineinfile:
+        path: /etc/ld.so.conf
+        line: "/usr/local/lib"
+        state: present
 
-    # デバッグタスク3: RubyでMeCabが存在するか確認
-    - name: Check if MeCab Ruby gem is installed
-      ansible.builtin.shell: |
-        . ~/.asdf/asdf.sh && gem list | grep mecab
-      register: mecab_ruby_gem
-      changed_when: false
-
-    - name: Debug MeCab Ruby gem installation
-      debug:
-        msg: "MeCab Ruby gem: {{ mecab_ruby_gem.stdout }}"
-
-    - name: Source asdf for Ruby command
-      ansible.builtin.shell: |
-        . ~/.asdf/asdf.sh && ruby -rmecab -e "puts MeCab::VERSION"
-      register: mecab_ruby_installed
-      changed_when: false
-
-    - name: Assert MeCab Ruby binding installation
-      assert:
-        that:
-          - mecab_ruby_installed.rc == 0
-
-    - name: Verify ldconfig is updated
-      command: ldconfig -p | grep /usr/local/lib
-      register: ldconfig_updated
-      changed_when: false
-
-    - name: Assert ldconfig update
-      assert:
-        that:
-          - ldconfig_updated.rc == 0
+    - name: Run ldconfig
+      ansible.builtin.command:
+        cmd: ldconfig
