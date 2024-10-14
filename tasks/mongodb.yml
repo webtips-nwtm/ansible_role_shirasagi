@@ -93,11 +93,6 @@
   register: mongodb_status
   changed_when: false
 
-# MongoDBの詳細な状態をデバッグ表示
-- name: Show detailed MongoDB status for debugging
-  ansible.builtin.debug:
-    var: mongodb_status
-
 # MongoDBがまだアクティブでない場合のみ起動
 - name: Start MongoDB if not already running
   ansible.builtin.systemd:

@@ -59,36 +59,86 @@
     update: yes
   changed_when: false # 冪等性を確保
 
-# Bundlerのインストールと実行
+- name: Find .rb files in config/samples
+  ansible.builtin.find:
+    paths: "/var/www/shirasagi/config/samples" # ここに絶対パスを指定
+    patterns: "*.rb"
+  register: rb_files
 
+- name: Copy .rb files from config/samples to config
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/var/www/shirasagi/config/"
+    remote_src: yes
+    mode: "0644"
+  loop: "{{ rb_files.files }}"
+  when: rb_files.matched > 0
+
+- name: Find .yml files in config/samples
+  ansible.builtin.find:
+    paths: "/var/www/shirasagi/config/samples" # 絶対パスを指定
+    patterns: "*.yml"
+  register: yml_files
+
+- name: Copy .yml files from config/samples to config
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/var/www/shirasagi/config/"
+    remote_src: yes
+    mode: "0644"
+  loop: "{{ yml_files.files }}"
+  when: yml_files.matched > 0
+
+# Bundlerのインストールと実行
 - name: Check if bundler is installed
   ansible.builtin.command: bundle --version
   args:
-    chdir: /var/www/shirasagi # Shirasagi のディレクトリに移動して実行
+    chdir: /var/www/shirasagi
   register: bundler_check
   failed_when: false
   changed_when: false
 
 - name: Install bundler if not installed
-  ansible.builtin.command: . ~/.asdf/asdf.sh && gem install bundler
-  when: bundler_check.rc != 0 # bundlerがインストールされていない場合のみ実行
+  ansible.builtin.shell: |
+    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && gem install bundler
+  args:
+    executable: /bin/bash
+  when: bundler_check.rc != 0
+  become: true
+  become_user: root
+
+- name: Check permissions of /var/www/shirasagi
+  ansible.builtin.command: ls -ld /var/www/shirasagi
+
+- name: Fix permissions of /var/www/shirasagi
+  ansible.builtin.file:
+    path: /var/www/shirasagi
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
 
 - name: Check if all gems are installed
-  ansible.builtin.command: . ~/.asdf/asdf.sh && bundle check
+  ansible.builtin.shell: |
+    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && bundle check
   args:
-    chdir: /var/www/shirasagi # Shirasagi のディレクトリに移動して実行
+    chdir: /var/www/shirasagi
+    executable: /bin/bash
   register: bundle_check
-  failed_when: false # 失敗してもエラーにしない
-  changed_when: false # 状態確認のため変更なしと見なす
+  failed_when: false
+  changed_when: false
 
 - name: Install necessary Ruby gems with bundle install
-  ansible.builtin.command: . ~/.asdf/asdf.sh && bundle install --deployment --without development test
+  ansible.builtin.shell: |
+    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && bundle install --deployment --without development test
   args:
-    chdir: /var/www/shirasagi # Shirasagi のディレクトリに移動して実行
+    chdir: /var/www/shirasagi
+    executable: /bin/bash
   environment:
-    BUNDLE_PATH: vendor/bundle # ローカルに gem をインストール
-  when: bundle_check.rc != 0 # Gemが不足している場合にのみ実行
-  changed_when: true # Gemがインストールされた場合に変更ありと見なす
+    BUNDLE_PATH: vendor/bundle
+  when: bundle_check.rc != 0
+  become: true
+  become_user: root
 
 - name: Create /etc/profile.d/disable-spring.sh to disable Spring
   copy:
@@ -156,7 +206,7 @@
       WorkingDirectory=/var/www/shirasagi
       Type=simple
       Restart=always
-      ExecStart=/bin/bash -lc 'bundle exec rake job:run'
+      ExecStart=/bin/bash -lc '. /root/.asdf/asdf.sh && bundle exec rake job:run'
       ExecStop=/usr/bin/kill -QUIT $MAINPID
 
       [Install]
@@ -191,24 +241,25 @@
     enabled: yes
     state: started
 
-- name: Check status of unicorn.service
+# デバッグ用のタスクを追加
+- name: Check status of unicorn.service for debugging
   ansible.builtin.command: systemctl status unicorn.service
-  register: unicorn_status
-  failed_when: false # 状態確認なのでエラーにしない
+  register: unicorn_status_debug
+  failed_when: false
   changed_when: false
 
-- name: Show unicorn service status for debugging
+- name: Show unicorn.service status for debugging
   ansible.builtin.debug:
-    var: unicorn_status.stdout_lines
+    var: unicorn_status_debug.stdout_lines
 
-- name: Show detailed log of unicorn.service for debugging
+- name: Show detailed log of unicorn.service using journalctl for debugging
   ansible.builtin.command: journalctl -xeu unicorn.service
-  register: unicorn_journal
+  register: unicorn_journal_debug
   changed_when: false
 
-- name: Display detailed log of unicorn.service
+- name: Display detailed log of unicorn.service for debugging
   ansible.builtin.debug:
-    var: unicorn_journal.stdout_lines
+    var: unicorn_journal_debug.stdout_lines
 
 - name: Enable and start shirasagi-job.service
   systemd:
