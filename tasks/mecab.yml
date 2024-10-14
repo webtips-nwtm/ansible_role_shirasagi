@@ -121,21 +121,6 @@
         path: /usr/local/src/mecab-ruby-0.996/Makefile
       register: mecab_ruby_makefile
 
-    # - name: Generate Makefile for MeCab Ruby using asdf
-    #   shell: |
-    #     . $HOME/.asdf/asdf.sh
-    #     ruby extconf.rb
-    #   args:
-    #     chdir: /usr/local/src/mecab-ruby-0.996
-    #   when: mecab_ruby_installed.stat.exists == false
-    #   register: ruby_makefile_result
-    #   changed_when: "'creating Makefile' in ruby_makefile_result.stdout"
-    #
-    # - name: Check if MeCab Ruby binary exists
-    #   ansible.builtin.stat:
-    #     path: /usr/local/lib/ruby/site_ruby/3.2.0/x86_64-linux/MeCab.so
-    #   register: mecab_ruby_binary
-
     - name: Check if Makefile for MeCab Ruby exists
       ansible.builtin.stat:
         path: /usr/local/src/mecab-ruby-0.996/Makefile
