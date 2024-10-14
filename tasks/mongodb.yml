@@ -57,7 +57,7 @@
     remote_src: yes
     backup: no
   when: not backup_file_stat.stat.exists # バックアップファイルが存在しない場合にのみ実行
-  changed_when: false # 変更されたと見なさない
+  changed_when: false # 冪等性のために変更がないと見なす
 
 - name: Check if we have write permissions to the file
   ansible.builtin.stat:
@@ -85,8 +85,9 @@
   ansible.builtin.copy:
     src: /usr/lib/systemd/system/mongod.service
     dest: "{{ backup_file }}"
-    remote_src: yes # リモートホスト上のファイルを指定
-    backup: no # 手動でバックアップを取るため 'backup: no' を指定します
+    remote_src: yes
+    backup: no # 手動でバックアップを取るため 'backup: no' を指定
+  changed_when: false # 冪等性のために変更がないと見なす
 
 - name: Ensure OOMScoreAdjust is set in mongod.service
   ansible.builtin.lineinfile:
@@ -121,4 +122,4 @@
   ansible.builtin.systemd:
     name: mongod
     state: started
-  when: mongodb_status.stdout != "active" # 正しいステータスを確認して条件を修正
+  when: mongodb_status.stdout != "active" # MongoDBがactiveでない場合にのみ起動
