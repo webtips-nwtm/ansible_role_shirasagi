@@ -50,6 +50,14 @@
     path: "{{ backup_file }}"
   register: backup_file_stat
 
+- name: Backup the existing mongod.service file
+  ansible.builtin.copy:
+    src: /usr/lib/systemd/system/mongod.service
+    dest: /usr/lib/systemd/system/mongod.service.org
+    remote_src: yes
+    backup: no
+  when: not backup_file_stat.stat.exists # バックアップファイルが存在しない場合にのみ実行
+
 - name: Check if we have write permissions to the file
   ansible.builtin.stat:
     path: "{{ backup_file }}"
