@@ -46,6 +46,13 @@ jobs:
         run: |
           molecule test  # ルートディレクトリで実行
 
+      - name: Docker Cleanup
+        run: |
+          docker system prune -f --volumes  # 使っていないDockerリソースをクリーンアップ
+          docker network prune -f            # 不要なDockerネットワークを削除
+          docker container prune -f          # 停止したコンテナを削除
+          docker volume prune -f             # 未使用のボリュームを削除
+
   release:
     if: github.ref == 'refs/heads/main' # mainブランチの場合のみ実行
     needs: build # buildジョブが成功した後に実行
