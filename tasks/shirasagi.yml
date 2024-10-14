@@ -57,6 +57,38 @@
     dest: "{{ dest_dir }}"
     version: "{{ shirasagi_branch }}"
     update: yes
+  changed_when: false # 冪等性を確保
+
+# Bundlerのインストールと実行
+
+- name: Check if bundler is installed
+  ansible.builtin.command: bundle --version
+  args:
+    chdir: /var/www/shirasagi # Shirasagi のディレクトリに移動して実行
+  register: bundler_check
+  failed_when: false
+  changed_when: false
+
+- name: Install bundler if not installed
+  ansible.builtin.command: . ~/.asdf/asdf.sh && gem install bundler
+  when: bundler_check.rc != 0 # bundlerがインストールされていない場合のみ実行
+
+- name: Check if all gems are installed
+  ansible.builtin.command: . ~/.asdf/asdf.sh && bundle check
+  args:
+    chdir: /var/www/shirasagi # Shirasagi のディレクトリに移動して実行
+  register: bundle_check
+  failed_when: false # 失敗してもエラーにしない
+  changed_when: false # 状態確認のため変更なしと見なす
+
+- name: Install necessary Ruby gems with bundle install
+  ansible.builtin.command: . ~/.asdf/asdf.sh && bundle install --deployment --without development test
+  args:
+    chdir: /var/www/shirasagi # Shirasagi のディレクトリに移動して実行
+  environment:
+    BUNDLE_PATH: vendor/bundle # ローカルに gem をインストール
+  when: bundle_check.rc != 0 # Gemが不足している場合にのみ実行
+  changed_when: true # Gemがインストールされた場合に変更ありと見なす
 
 - name: Create /etc/profile.d/disable-spring.sh to disable Spring
   copy:
@@ -66,17 +98,17 @@
     owner: root
     group: root
     mode: "0755"
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Copy the systemd service file
   copy:
     src: /var/www/shirasagi/bin/unicorn-centos7_asdf.service
     dest: /etc/systemd/system/unicorn.service
-    remote_src: yes # リモートホスト上のファイルを使用
+    remote_src: yes
     owner: root
     group: root
     mode: "0755"
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Debug content of the systemd service file
   ansible.builtin.command: cat /etc/systemd/system/unicorn.service
@@ -93,7 +125,7 @@
     line: "EnvironmentFile=/etc/sysconfig/unicorn"
     insertafter: "User=root"
     state: present
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Ensure /etc/sysconfig directory exists
   file:
@@ -109,7 +141,7 @@
     owner: root
     group: root
     mode: "0644"
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Create systemd service file for Shirasagi Job Server
   ansible.builtin.copy:
@@ -129,7 +161,7 @@
 
       [Install]
       WantedBy=multi-user.target
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Copy job.yml from defaults to config
   copy:
@@ -139,43 +171,48 @@
     group: root
     mode: "0644"
     remote_src: yes
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Replace mode:on_demand with mode:"service" in job.yml
   replace:
     path: /var/www/shirasagi/config/job.yml
     regexp: 'mode: "on_demand"'
     replace: 'mode: "service"'
-  changed_when: false # 冪等性を確保
+  changed_when: false
 
 - name: Reload systemd to recognize the new service file
   systemd:
     daemon_reload: yes
-  changed_when: false # 冪等性を確保
+  changed_when: false
+
+- name: Enable and start unicorn.service
+  systemd:
+    name: unicorn.service
+    enabled: yes
+    state: started
 
 - name: Check status of unicorn.service
   ansible.builtin.command: systemctl status unicorn.service
   register: unicorn_status
-  changed_when: false # 状態確認なので変更があったと見なさない
+  failed_when: false # 状態確認なのでエラーにしない
+  changed_when: false
 
 - name: Show unicorn service status for debugging
   ansible.builtin.debug:
     var: unicorn_status.stdout_lines
-  changed_when: false # デバッグなので変更があったと見なさない
 
 - name: Show detailed log of unicorn.service for debugging
   ansible.builtin.command: journalctl -xeu unicorn.service
   register: unicorn_journal
-  changed_when: false # ログの確認は変更を伴わないので
+  changed_when: false
 
 - name: Display detailed log of unicorn.service
   ansible.builtin.debug:
     var: unicorn_journal.stdout_lines
-  changed_when: false # デバッグなので変更があったと見なさない
 
 - name: Enable and start shirasagi-job.service
   systemd:
     name: shirasagi-job.service
     enabled: yes
     state: started
-  changed_when: false # 冪等性を確保
+  changed_when: false
