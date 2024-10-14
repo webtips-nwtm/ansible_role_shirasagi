@@ -1,10 +1,8 @@
 ---
 - name: Test asdf installation and versions
   hosts: all
-  vars:
-    ruby_version_from_yml: "{{ lookup('file', '../../../defaults/main.yml') | from_yaml | json_query('ruby_version') }}"
-    nodejs_version_from_yml: "{{ lookup('file', '../../../defaults/main.yml') | from_yaml | json_query('nodejs_version') }}"
-    yarn_version_from_yml: "{{ lookup('file', '../../../defaults/main.yml') | from_yaml | json_query('yarn_version') }}"
+  vars_files:
+    - "{{ playbook_dir }}/../vars/main.yml" # ここで vars ファイルを読み込む
 
   tasks:
     - name: Check if asdf is installed
@@ -23,7 +21,7 @@
       ansible.builtin.shell: |
         . /root/.asdf/asdf.sh && asdf --version
       register: asdf_version_check
-      become: true # スーパーユーザーで実行
+      become: true
       changed_when: false
 
     - name: Ensure asdf is installed
@@ -34,41 +32,43 @@
     - name: Check Ruby version only if asdf is installed
       ansible.builtin.shell: |
         . ~/.asdf/asdf.sh && asdf current ruby
-      register: ruby_version
+      register: ruby_version_check
       when: asdf_version_check.rc == 0
 
-    - name: Check Ruby version only if asdf is installed
-      ansible.builtin.shell: |
-        . ~/.asdf/asdf.sh && asdf current ruby
-      register: ruby_version
-      when: asdf_version_check.rc == 0
+    - name: Debug Ruby version from asdf
+      debug:
+        msg: "Ruby version from asdf: {{ ruby_version_check.stdout.split()[1] }}"
+
+    - name: Debug expected Ruby version from vars
+      debug:
+        msg: "Expected Ruby version: {{ ruby_version }}"
 
     - name: Ensure Ruby version matches the default version
-      assert:
+      ansible.builtin.assert:
         that:
-          - ruby_version.stdout.split()[1] == ruby_version_from_yml
-      failed_when: ruby_version.stdout.split()[1] != ruby_version_from_yml
+          - ruby_version_check.stdout.split()[1] == ruby_version
+      failed_when: ruby_version_check.stdout.split()[1] != ruby_version
 
     - name: Check Node.js version only if asdf is installed
       ansible.builtin.shell: |
         . ~/.asdf/asdf.sh && asdf current nodejs
-      register: nodejs_version
+      register: nodejs_version_check
       when: asdf_version_check.rc == 0
 
     - name: Ensure Node.js version matches the default version
-      assert:
+      ansible.builtin.assert:
         that:
-          - nodejs_version.stdout.split()[1] == nodejs_version_from_yml
-      failed_when: nodejs_version.stdout.split()[1] != nodejs_version_from_yml
+          - nodejs_version_check.stdout.split()[1] == nodejs_version
+      failed_when: nodejs_version_check.stdout.split()[1] != nodejs_version
 
     - name: Check Yarn version only if asdf is installed
       ansible.builtin.shell: |
         . ~/.asdf/asdf.sh && asdf current yarn
-      register: yarn_version
+      register: yarn_version_check
       when: asdf_version_check.rc == 0
 
     - name: Ensure Yarn version matches the default version
-      assert:
+      ansible.builtin.assert:
         that:
-          - yarn_version.stdout.split()[1] == yarn_version_from_yml
-      failed_when: yarn_version.stdout.split()[1] != yarn_version_from_yml
+          - yarn_version_check.stdout.split()[1] == yarn_version
+      failed_when: yarn_version_check.stdout.split()[1] != yarn_version

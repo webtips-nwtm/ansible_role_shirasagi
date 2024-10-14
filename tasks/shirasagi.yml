@@ -1,0 +1,253 @@
+---
+- name: Manage repositories and packages
+  block:
+    - name: Update dnf cache for RedHat系
+      ansible.builtin.dnf:
+        update_cache: yes
+      become: true
+      when: ansible_os_family == "RedHat"
+
+    - name: Ensure EPEL repository is available but disabled on Red Hat-based systems
+      ansible.builtin.yum_repository:
+        name: epel
+        description: "Extra Packages for Enterprise Linux"
+        baseurl: "https://download.fedoraproject.org/pub/epel/$releasever/Everything/$basearch/"
+        enabled: no
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Development Tools on Red Hat-based systems
+      ansible.builtin.yum:
+        name: "@Development Tools"
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install ImageMagick with EPEL temporarily enabled on Red Hat-based systems
+      ansible.builtin.yum:
+        name:
+          - ImageMagick
+          - ImageMagick-devel
+        enablerepo: epel
+        disable_gpg_check: yes
+        state: present
+      when: ansible_os_family == "RedHat"
+
+- name: Ensure git is installed
+  ansible.builtin.package:
+    name: git
+    state: present
+
+- name: Get system architecture
+  ansible.builtin.setup:
+    filter: ansible_architecture
+  register: arch_info
+  changed_when: false # 冪等性のために変更なしと見なす
+  #failed_when: arch_info is not defined # エラーチェック追加
+
+- name: Debug system architecture information
+  ansible.builtin.debug:
+    var: arch_info # arch_info 全体を表示することで、詳細な情報を取得
+
+- name: Debug system architecture
+  ansible.builtin.debug:
+    msg: "System architecture: {{ arch_info.ansible_facts.ansible_architecture }}"
+
+- name: Set architecture variable
+  ansible.builtin.set_fact:
+    architecture: "{{ arch_info.ansible_facts.ansible_architecture }}"
+  when: arch_info.ansible_facts.ansible_architecture is defined
+
+- name: Debug architecture variable
+  ansible.builtin.debug:
+    msg: "Architecture variable is set to: {{ architecture }}"
+  when: architecture is defined
+
+- name: Clone Shirasagi repository with a specific branch
+  ansible.builtin.git:
+    repo: "{{ shirasagi_repo }}"
+    dest: "{{ dest_dir }}"
+    version: "{{ shirasagi_branch }}" # ブランチ指定
+    update: yes
+
+- name: Copy .yml and .rb files from config/samples to target directory
+  ansible.builtin.find:
+    paths: /var/www/shirasagi/config/samples
+    patterns:
+      - "*.yml"
+      - "*.rb"
+    recurse: yes
+  register: found_files
+
+- name: Copy found .yml and .rb files to target directory
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/var/www/shirasagi/config/"
+    remote_src: yes
+  loop: "{{ found_files.files }}"
+  when: found_files.matched > 0
+
+- block:
+    - name: Load asdf environment
+      shell: |
+        . $HOME/.asdf/asdf.sh
+        . $HOME/.asdf/completions/asdf.bash
+      args:
+        executable: /bin/bash
+
+    - name: Get current Ruby version managed by asdf
+      shell: ~/.asdf/bin/asdf current ruby | awk '{print $2}'
+      register: ruby_version
+      failed_when: ruby_version.stdout == ""
+      changed_when: false
+      args:
+        executable: /bin/bash
+      ignore_errors: false
+
+    - name: Reshim Ruby version
+      shell: ~/.asdf/bin/asdf reshim ruby
+      register: reshim_output
+      args:
+        executable: /bin/bash
+      failed_when: reshim_output.rc != 0
+      ignore_errors: false
+
+    - name: Install Bundler for the current Ruby version
+      shell: ~/.asdf/installs/ruby/{{ ruby_version.stdout }}/bin/gem install bundler
+      args:
+        executable: /bin/bash
+      register: bundler_install
+      failed_when: bundler_install.rc != 0
+      ignore_errors: false
+
+    - name: Install Bundler dependencies
+      shell: . ~/.asdf/asdf.sh && asdf reshim nodejs && ~/.asdf/shims/bundle install
+      args:
+        chdir: /var/www/shirasagi
+        executable: /bin/bash
+      register: bundle_install
+      failed_when: bundle_install.rc != 0
+      ignore_errors: false
+
+    - name: Install project dependencies with Yarn
+      shell: ~/.asdf/shims/yarn install
+      args:
+        chdir: /var/www/shirasagi
+        executable: /bin/bash
+      register: yarn_install
+      failed_when: yarn_install.rc != 0
+      ignore_errors: false
+
+    - name: Build the project with Yarn
+      shell: ~/.asdf/shims/yarn build
+      args:
+        chdir: /var/www/shirasagi
+        executable: /bin/bash
+      register: yarn_build
+      failed_when: yarn_build.rc != 0
+      ignore_errors: false
+
+  rescue:
+    - name: Log error details
+      debug:
+        msg: "An error occurred during the execution of one of the steps. Error details: {{ item }}"
+      loop:
+        - "Reshim output: {{ reshim_output | default('Not executed') }}"
+        - "Bundler install: {{ bundler_install | default('Not executed') }}"
+        - "Bundle install: {{ bundle_install | default('Not executed') }}"
+        - "Yarn install: {{ yarn_install | default('Not executed') }}"
+        - "Yarn build: {{ yarn_build | default('Not executed') }}"
+
+    - name: Handle errors
+      debug:
+        msg: "An error occurred during the execution of one of the steps."
+
+- name: Create /etc/profile.d/disable-spring.sh to disable Spring
+  copy:
+    content: |
+      export DISABLE_SPRING=1
+    dest: /etc/profile.d/disable-spring.sh
+    remote_src: yes
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy the systemd service file
+  copy:
+    src: /var/www/shirasagi/bin/unicorn-centos7_asdf.service
+    dest: /etc/systemd/system/unicorn.service
+    remote_src: yes
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Add EnvironmentFile line to the systemd service file
+  lineinfile:
+    path: /etc/systemd/system/unicorn.service
+    line: "EnvironmentFile=/etc/sysconfig/unicorn"
+    insertafter: "User=root"
+    state: present
+
+- name: Ensure /etc/sysconfig directory exists
+  file:
+    path: /etc/sysconfig
+    state: directory
+
+- name: Create /etc/sysconfig/unicorn with memory limits
+  copy:
+    content: |
+      UNICORN_KILLER_MEM_MIN=576
+      UNICORN_KILLER_MEM_MAX=640
+    dest: /etc/sysconfig/unicorn
+    remote_src: yes
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create systemd service file for Shirasagi Job Server
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/shirasagi-job.service
+    content: |
+      [Unit]
+      Description=Shirasagi Job Server
+      After=mongod.service
+
+      [Service]
+      User=root
+      WorkingDirectory=/var/www/shirasagi
+      Type=simple
+      Restart=always
+      ExecStart=/bin/bash -lc 'bundle exec rake job:run'
+      ExecStop=/usr/bin/kill -QUIT $MAINPID
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Copy job.yml from defaults to config
+  copy:
+    src: /var/www/shirasagi/config/defaults/job.yml
+    dest: /var/www/shirasagi/config/job.yml
+    remote_src: yes
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Replace mode:on_demand with mode:"service" in job.yml
+  replace:
+    path: /var/www/shirasagi/config/job.yml
+    regexp: 'mode: "on_demand"'
+    replace: 'mode: "service"'
+
+- name: Reload systemd to recognize the new service file
+  systemd:
+    daemon_reload: yes
+
+- name: Enable and start unicorn.service
+  systemd:
+    name: unicorn.service
+    enabled: yes
+    state: started
+
+- name: Enable and start shirasagi-job.service
+  systemd:
+    name: shirasagi-job.service
+    enabled: yes
+    state: started

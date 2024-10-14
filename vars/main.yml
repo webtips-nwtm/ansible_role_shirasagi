@@ -1,0 +1,20 @@
+---
+#asdf
+ruby_version: "3.2.5"
+nodejs_version: "20.17.0"
+yarn_version: "1.22.22"
+
+#mongodb
+mongodb_version: "7.0"
+
+#mecab
+mecab_packages:
+  - name: "MeCab IPADIC"
+    url: "https://drive.google.com/uc?export=download&id=0B4y35FiV1wh7MWVlSDBCSXZMTXM"
+    tar_name: "mecab-ipadic-2.7.0-20070801.tar.gz"
+    configure_options: "--with-charset=UTF-8"
+    patch: "mecab-ipadic-2.7.0-20070801.patch"
+  - name: "MeCab Ruby"
+    url: "https://drive.google.com/uc?export=download&id=0B4y35FiV1wh7VUNlczBWVDZJbE0"
+    tar_name: "mecab-ruby-0.996.tar.gz"
+    configure_options: ""

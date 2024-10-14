@@ -1,0 +1,97 @@
+---
+- name: Test MeCab role
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Development Tools are installed
+      command: rpm -q gcc
+      register: dev_tools
+      changed_when: false
+
+    - name: Assert Development Tools installation
+      assert:
+        that:
+          - dev_tools.rc == 0
+
+    - name: Verify wget is installed
+      command: rpm -q wget
+      register: wget_installed
+      changed_when: false
+
+    - name: Assert wget installation
+      assert:
+        that:
+          - wget_installed.rc == 0
+
+    - name: Verify MeCab is installed
+      command: rpm -q mecab
+      register: mecab_installed
+      changed_when: false
+
+    - name: Assert MeCab installation
+      assert:
+        that:
+          - mecab_installed.rc == 0
+
+    - name: Verify MeCab IPADIC is installed
+      stat:
+        path: /usr/local/src/mecab-ipadic-2.7.0-20070801
+      register: mecab_ipadic
+
+    - name: Assert MeCab IPADIC installation
+      assert:
+        that:
+          - mecab_ipadic.stat.exists
+
+    # デバッグタスク1: MeCab.soの場所を確認
+    - name: Verify location of MeCab Ruby binding (MeCab.so)
+      command: find / -name "MeCab.so"
+      register: mecab_so_location
+      changed_when: false
+
+    - name: Debug MeCab.so location
+      debug:
+        msg: "MeCab.so found at: {{ mecab_so_location.stdout_lines }}"
+
+    # デバッグタスク2: RubyのGEM_PATHを確認
+    - name: Check Ruby GEM_PATH
+      ansible.builtin.shell: |
+        . ~/.asdf/asdf.sh && ruby -e 'puts ENV["GEM_PATH"]'
+      register: gem_path
+      changed_when: false
+
+    - name: Debug Ruby GEM_PATH
+      debug:
+        msg: "Ruby GEM_PATH: {{ gem_path.stdout }}"
+
+    # デバッグタスク3: RubyでMeCabが存在するか確認
+    - name: Check if MeCab Ruby gem is installed
+      ansible.builtin.shell: |
+        . ~/.asdf/asdf.sh && gem list | grep mecab
+      register: mecab_ruby_gem
+      changed_when: false
+
+    - name: Debug MeCab Ruby gem installation
+      debug:
+        msg: "MeCab Ruby gem: {{ mecab_ruby_gem.stdout }}"
+
+    - name: Source asdf for Ruby command
+      ansible.builtin.shell: |
+        . ~/.asdf/asdf.sh && ruby -rmecab -e "puts MeCab::VERSION"
+      register: mecab_ruby_installed
+      changed_when: false
+
+    - name: Assert MeCab Ruby binding installation
+      assert:
+        that:
+          - mecab_ruby_installed.rc == 0
+
+    - name: Verify ldconfig is updated
+      command: ldconfig -p | grep /usr/local/lib
+      register: ldconfig_updated
+      changed_when: false
+
+    - name: Assert ldconfig update
+      assert:
+        that:
+          - ldconfig_updated.rc == 0

@@ -1,9 +1,3 @@
 ---
-- name: Run all tests from tests/ directory
-  hosts: all
-  gather_facts: false
-  tasks:
-    - name: Include all test files from tests/ directory
-      include_tasks: "{{ item }}"
-      with_fileglob:
-        - "../tests/*.yml" # tests ディレクトリ内のすべての .yml ファイルを読み込む
+- import_playbook: ../../tests/test_asdf.yml
+- import_playbook: ../../tests/test_mecab.yml
