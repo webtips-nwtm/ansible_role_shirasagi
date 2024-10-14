@@ -20,6 +20,8 @@ platforms:
 
 provisioner:
   name: ansible
+  retry: 5
+  delay: 10
   log: true
   playbooks:
     converge: converge.yml
