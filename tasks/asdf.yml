@@ -1,4 +1,3 @@
----
 - name: Update package manager cache and install dependencies
   block:
     - name: Update all packages
@@ -6,29 +5,24 @@
         name: "*"
         state: latest
         skip_broken: true
+      become: true
 
-    - name: Install libyaml-devel on Red Hat-based systems (temporarily enabling CRB)
-      ansible.builtin.dnf:
-        name: libyaml-devel
-        enablerepo: crb
-        state: present
-      when: ansible_os_family == "RedHat"
-
-    - name: Install dependencies for RedHat系
+    - name: Install dependencies with CRB enabled
       ansible.builtin.dnf:
         name:
+          - libyaml-devel
           - tar
           - openssl-devel
           - libffi-devel
           - which
           - git
-          - tar
           - gcc
           - make
           - bzip2
           - readline-devel
           - zlib-devel
           - wget
+        enablerepo: crb
         state: present
       become: true
       when: ansible_os_family == "RedHat"
@@ -39,6 +33,7 @@
   ansible.builtin.stat:
     path: /root/.asdf
   register: asdf_installed
+  become: true
 
 - name: Clone asdf repository
   ansible.builtin.git:
@@ -65,6 +60,7 @@
   changed_when: false
   become: true
 
+# Ruby Plugin Management
 - name: Check if Ruby plugin is installed
   command: /root/.asdf/bin/asdf plugin-list
   register: ruby_plugin_check
@@ -87,59 +83,66 @@
 
 - name: Install Ruby {{ ruby_version }} if not installed
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf install ruby {{ ruby_version }} && asdf global ruby {{ ruby_version }}
+    . /root/.asdf/asdf.sh && asdf install ruby {{ ruby_version }} && asdf global ruby {{ ruby_version }}
   args:
     executable: /bin/bash
   when: ruby_version not in ruby_check.stdout
+  become: true
 
 # Node.js Plugin Management
 - name: Check if nodejs plugin is installed
-  command: ~/.asdf/bin/asdf plugin-list
+  command: /root/.asdf/bin/asdf plugin-list
   register: nodejs_plugin_check
   changed_when: false
+  become: true
 
 - name: Install nodejs plugin if not installed
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf plugin-add nodejs https://github.com/asdf-vm/asdf-nodejs.git
+    . /root/.asdf/asdf.sh && asdf plugin-add nodejs https://github.com/asdf-vm/asdf-nodejs.git
   args:
     executable: /bin/bash
   when: "'nodejs' not in nodejs_plugin_check.stdout_lines"
   become: true
 
 - name: Check if Node.js {{ nodejs_version }} is installed
-  command: ~/.asdf/bin/asdf list
+  command: /root/.asdf/bin/asdf list
   register: nodejs_check
   changed_when: false
+  become: true
 
 - name: Install Node.js {{ nodejs_version }} if not installed
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf install nodejs {{ nodejs_version }} && asdf global nodejs {{ nodejs_version }}
+    . /root/.asdf/asdf.sh && asdf install nodejs {{ nodejs_version }} && asdf global nodejs {{ nodejs_version }}
   args:
     executable: /bin/bash
   when: nodejs_version not in nodejs_check.stdout
+  become: true
 
 # Yarn Plugin Management
 - name: Check if yarn plugin is installed
-  command: ~/.asdf/bin/asdf plugin-list
+  command: /root/.asdf/bin/asdf plugin-list
   register: yarn_plugin_check
   changed_when: false
+  become: true
 
 - name: Install yarn plugin if not installed
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf plugin-add yarn
+    . /root/.asdf/asdf.sh && asdf plugin-add yarn
   args:
     executable: /bin/bash
   when: "'yarn' not in yarn_plugin_check.stdout_lines"
   become: true
 
 - name: Check if Yarn {{ yarn_version }} is installed
-  command: ~/.asdf/bin/asdf list
+  command: /root/.asdf/bin/asdf list
   register: yarn_check
   changed_when: false
+  become: true
 
 - name: Install Yarn {{ yarn_version }} if not installed
   ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf install yarn {{ yarn_version }} && asdf global yarn {{ yarn_version }}
+    . /root/.asdf/asdf.sh && asdf install yarn {{ yarn_version }} && asdf global yarn {{ yarn_version }}
   args:
     executable: /bin/bash
   when: yarn_version not in yarn_check.stdout
+  become: true

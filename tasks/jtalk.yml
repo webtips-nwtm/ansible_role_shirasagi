@@ -1,0 +1,97 @@
+---
+- name: Ensure required packages are installed
+  package:
+    name:
+      - tar
+      - gzip
+      - unzip
+      - wget
+      - gcc
+      - make
+      - automake
+      - autoconf
+    state: present
+
+- name: Create directory for source files
+  file:
+    path: /usr/local/src
+    state: directory
+
+- name: Verify source directory exists
+  stat:
+    path: /usr/local/src
+  register: src_dir
+
+- name: Assert source directory exists
+  assert:
+    that:
+      - src_dir.stat.exists
+      - src_dir.stat.isdir
+
+- name: Download package
+  get_url:
+    url: "{{ item.url }}"
+    dest: "/usr/local/src/{{ item.name }}.tar.gz"
+  when: not item.downloaded
+  loop: "{{ packages }}"
+
+- name: Verify package downloaded
+  stat:
+    path: "/usr/local/src/{{ item.name }}.tar.gz"
+  register: package_downloaded
+  loop: "{{ packages }}"
+  loop_control:
+    loop_var: item
+
+- name: Debug package_downloaded
+  debug:
+    var: package_downloaded
+  loop: "{{ packages }}"
+  loop_control:
+    loop_var: item
+
+- name: Set package as downloaded if file exists
+  set_fact:
+    packages: "{{ packages | map('combine', {'downloaded': true}) | list }}"
+  when: package_downloaded.stat.exists
+  loop: "{{ packages }}"
+  loop_control:
+    loop_var: item
+
+# - name: Verify package extracted
+#   stat:
+#     path: "/usr/local/src/{{ item.name }}"
+#   register: package_extracted
+#   loop: "{{ packages }}"
+#   loop_control:
+#     loop_var: item
+
+- name: Extract package
+  unarchive:
+    src: "/usr/local/src/{{ item.name }}.tar.gz"
+    dest: /usr/local/src
+    remote_src: yes
+  when: not package_extracted.stat.exists
+  loop: "{{ package_extracted.results }}"
+  loop_control:
+    loop_var: extracted_item
+
+- name: Check if binaries are installed
+  stat:
+    path: "/usr/local/bin/{{ item.binary }}"
+  register: binary_installed
+  loop: "{{ packages }}"
+
+- name: Run configure and make commands
+  shell: "{{ command }}"
+  args:
+    chdir: "/usr/local/src/{{ item.name }}"
+  loop: "{{ item.configure_commands }}"
+  loop_control:
+    loop_var: command
+  register: make_result
+  when: item.configure_commands is defined and not binary_installed.stat.exists
+
+- name: Update shared library cache
+  command: ldconfig
+  when: make_result.changed

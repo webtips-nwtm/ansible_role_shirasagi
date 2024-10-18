@@ -18,3 +18,31 @@ mecab_packages:
     url: "https://drive.google.com/uc?export=download&id=0B4y35FiV1wh7VUNlczBWVDZJbE0"
     tar_name: "mecab-ruby-0.996.tar.gz"
     configure_options: ""
+
+#jtalk
+packages:
+  - name: "hts_engine_API-1.08"
+    binary: "hts_engine"
+    configure_commands: ["./configure && make && make install"]
+    url: "http://downloads.sourceforge.net/hts-engine/hts_engine_API-1.08.tar.gz"
+    downloaded: false
+  - name: "open_jtalk-1.07"
+    binary: "open_jtalk"
+    configure_commands:
+      - "sed -i 's/#define MAXBUFLEN 1024/#define MAXBUFLEN 10240/' bin/open_jtalk.c"
+      - "sed -i 's/0x00D0 SPACE/0x000D SPACE/' mecab-naist-jdic/char.def"
+      - "./configure --with-charset=UTF-8 && make && make install"
+    url: "http://downloads.sourceforge.net/open-jtalk/open_jtalk-1.07.tar.gz"
+    downloaded: false
+  - name: "lame-3.99.5"
+    binary: "lame"
+    configure_commands: ["./configure && make && make install"]
+    url: "http://downloads.sourceforge.net/lame/lame-3.99.5.tar.gz"
+    downloaded: false
+  - name: "sox-14.4.1"
+    binary: "sox"
+    configure_commands: ["./configure && make && make install"]
+    url: "http://downloads.sourceforge.net/sox/sox-14.4.1.tar.gz"
+    downloaded: false
+
+src_dir: "/usr/local/src"

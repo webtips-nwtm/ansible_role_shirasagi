@@ -10,3 +10,6 @@
 
 - name: Load tasks from shirasagi.yml
   import_tasks: shirasagi.yml
+
+- name: Load tasks from jtalk.yml
+  import_tasks: jtalk.yml
