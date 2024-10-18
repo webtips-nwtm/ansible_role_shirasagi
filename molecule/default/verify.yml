@@ -1,3 +1,5 @@
 ---
 - import_playbook: ../../tests/test_asdf.yml
 - import_playbook: ../../tests/test_mecab.yml
+- import_playbook: ../../tests/test_shirasagi.yml
+- import_playbook: ../../tests/test_jtalk.yml

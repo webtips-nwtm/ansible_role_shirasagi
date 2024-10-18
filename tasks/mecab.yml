@@ -31,10 +31,6 @@
     path: /usr/local/lib/libmecab.so
   register: mecab_ipadic_installed
 
-- name: Initialize configure_done
-  ansible.builtin.set_fact:
-    configure_done: false
-
 - name: Install MeCab IPADIC
   block:
     - name: Download MeCab IPADIC patch
@@ -83,16 +79,11 @@
       when: mecab_ipadic_makefile.stat.exists == false
       register: configure_result
 
-    - name: Set configure_done to true if configure succeeded
-      ansible.builtin.set_fact:
-        configure_done: true
-      when: configure_result is defined and configure_result.changed
-
     - name: Build MeCab IPADIC
       shell: make
       args:
         chdir: /usr/local/src/mecab-ipadic-2.7.0-20070801
-      when: configure_done == true and mecab_ipadic_installed.stat.exists == false
+      when: configure_result is defined and configure_result.changed and mecab_ipadic_installed.stat.exists == false
 
     - name: Install MeCab IPADIC
       shell: make install
@@ -104,7 +95,7 @@
 
 - name: Check if MeCab Ruby is already installed
   ansible.builtin.stat:
-    path: /usr/local/lib/ruby/site_ruby/2.7.0/mecab.so
+    path: "/root/.asdf/installs/ruby/{{ ruby_version }}/lib/ruby/site_ruby/{{ ruby_version }}/x86_64-linux/mecab.so"
   register: mecab_ruby_installed
 
 - name: Install MeCab Ruby
@@ -117,11 +108,6 @@
         creates: /usr/local/src/mecab-ruby-0.996
 
     - name: Check if MeCab Ruby Makefile exists
-      ansible.builtin.stat:
-        path: /usr/local/src/mecab-ruby-0.996/Makefile
-      register: mecab_ruby_makefile
-
-    - name: Check if Makefile for MeCab Ruby exists
       ansible.builtin.stat:
         path: /usr/local/src/mecab-ruby-0.996/Makefile
       register: ruby_makefile_exists
@@ -143,11 +129,6 @@
       register: build_output
       changed_when: "'linking shared-object MeCab.so' in build_output.stdout"
       failed_when: build_output.rc != 0
-
-    - name: Check if MeCab Ruby is already installed
-      ansible.builtin.stat:
-        path: /root/.asdf/installs/ruby/3.2.5/lib/ruby/site_ruby/3.2.0/x86_64-linux/MeCab.so
-      register: mecab_ruby_installed
 
     - name: Install MeCab Ruby
       shell: make install

@@ -1,0 +1,73 @@
+---
+- name: Create Nginx repository file
+  template:
+    src: nginx.repo.j2
+    dest: /etc/yum.repos.d/nginx.repo
+
+- name: Install Nginx from the repository
+  dnf:
+    name: nginx
+    state: present
+    enablerepo: nginx
+
+- name: Ensure Nginx is started and enabled
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Create standard Nginx configuration
+  template:
+    src: http.conf.j2
+    dest: /etc/nginx/conf.d/http.conf
+
+- name: Create header configuration
+  template:
+    src: header.conf.j2
+    dest: /etc/nginx/conf.d/header.conf
+
+- name: Create common cache settings
+  file:
+    path: /etc/nginx/conf.d/common/
+    state: directory
+
+- name: Create drop cache configuration
+  template:
+    src: drop.conf.j2
+    dest: /etc/nginx/conf.d/common/drop.conf
+
+- name: Create botdrop cache configuration
+  template:
+    src: botdrop.conf.j2
+    dest: /etc/nginx/conf.d/common/botdrop.conf
+
+- name: Create security cache configuration
+  template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/common/security.conf
+
+- name: Create Shirasagi virtual host configuration
+  template:
+    src: virtual.conf.j2
+    dest: /etc/nginx/conf.d/virtual.conf
+
+- name: Create Shirasagi proxy configuration
+  file:
+    path: /etc/nginx/conf.d/server/
+    state: directory
+
+- name: Create Shirasagi server configuration
+  template:
+    src: shirasagi.conf.j2
+    dest: /etc/nginx/conf.d/server/shirasagi.conf
+
+- name: Test Nginx configuration
+  command: nginx -t
+  register: nginx_test
+  ignore_errors: true
+
+- name: Restart Nginx if configuration is valid
+  systemd:
+    name: nginx
+    state: restarted
+  when: nginx_test is defined and nginx_test.rc == 0

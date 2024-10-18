@@ -7,22 +7,20 @@
       become: true
       when: ansible_os_family == "RedHat"
 
-    - name: Ensure EPEL repository is available but disabled on Red Hat-based systems
-      ansible.builtin.yum_repository:
-        name: epel
-        description: "Extra Packages for Enterprise Linux"
-        baseurl: "https://download.fedoraproject.org/pub/epel/$releasever/Everything/$basearch/"
-        enabled: no
+    - name: Ensure EPEL repository is available
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
       when: ansible_os_family == "RedHat"
 
     - name: Install Development Tools on Red Hat-based systems
-      ansible.builtin.yum:
+      ansible.builtin.dnf:
         name: "@Development Tools"
         state: present
       when: ansible_os_family == "RedHat"
 
     - name: Install ImageMagick with EPEL temporarily enabled on Red Hat-based systems
-      ansible.builtin.yum:
+      ansible.builtin.dnf:
         name:
           - ImageMagick
           - ImageMagick-devel
@@ -57,11 +55,10 @@
     dest: "{{ dest_dir }}"
     version: "{{ shirasagi_branch }}"
     update: yes
-  changed_when: false # 冪等性を確保
 
 - name: Find .rb files in config/samples
   ansible.builtin.find:
-    paths: "/var/www/shirasagi/config/samples" # ここに絶対パスを指定
+    paths: "/var/www/shirasagi/config/samples"
     patterns: "*.rb"
   register: rb_files
 
@@ -76,7 +73,7 @@
 
 - name: Find .yml files in config/samples
   ansible.builtin.find:
-    paths: "/var/www/shirasagi/config/samples" # 絶対パスを指定
+    paths: "/var/www/shirasagi/config/samples"
     patterns: "*.yml"
   register: yml_files
 
@@ -90,6 +87,10 @@
   when: yml_files.matched > 0
 
 # Bundlerのインストールと実行
+- name: Set ASDF path in environment
+  ansible.builtin.set_fact:
+    asdf_path: "/root/.asdf/bin:/root/.asdf/shims"
+
 - name: Check if bundler is installed
   ansible.builtin.command: bundle --version
   args:
@@ -98,28 +99,14 @@
   failed_when: false
   changed_when: false
 
-- name: Check if bundler is installed
-  ansible.builtin.shell: |
-    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && gem list bundler -i
-  args:
-    executable: /bin/bash
-  register: bundler_check
-  changed_when: false
-  failed_when: false
-  become: true
-  become_user: root
-
 - name: Install bundler if not installed
   ansible.builtin.shell: |
-    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && gem install bundler
+    export PATH="$PATH:{{ asdf_path }}" && gem install bundler
   args:
     executable: /bin/bash
   when: bundler_check.stdout.find('true') == -1
   become: true
   become_user: root
-
-# - name: Check permissions of /var/www/shirasagi
-#   ansible.builtin.command: ls -ld /var/www/shirasagi
 
 - name: Fix permissions of /var/www/shirasagi
   ansible.builtin.file:
@@ -131,7 +118,7 @@
 
 - name: Check if all gems are installed
   ansible.builtin.shell: |
-    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && bundle check
+    export PATH="$PATH:{{ asdf_path }}" && bundle check
   args:
     chdir: /var/www/shirasagi
     executable: /bin/bash
@@ -141,7 +128,7 @@
 
 - name: Install necessary Ruby gems with bundle install
   ansible.builtin.shell: |
-    export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && bundle install --deployment --without development test
+    export PATH="$PATH:{{ asdf_path }}" && bundle install --deployment --without development test
   args:
     chdir: /var/www/shirasagi
     executable: /bin/bash
@@ -159,7 +146,6 @@
     owner: root
     group: root
     mode: "0755"
-  changed_when: false
 
 - name: Copy the systemd service file
   copy:
@@ -169,12 +155,10 @@
     owner: root
     group: root
     mode: "0755"
-  changed_when: false
 
 - name: Debug content of the systemd service file
   ansible.builtin.command: cat /etc/systemd/system/unicorn.service
   register: systemd_file_content
-  changed_when: false
 
 - name: Display systemd service file content
   ansible.builtin.debug:
@@ -186,7 +170,6 @@
     line: "EnvironmentFile=/etc/sysconfig/unicorn"
     insertafter: "User=root"
     state: present
-  changed_when: false
 
 - name: Ensure /etc/sysconfig directory exists
   file:
@@ -202,7 +185,6 @@
     owner: root
     group: root
     mode: "0644"
-  changed_when: false
 
 - name: Create systemd service file for Shirasagi Job Server
   ansible.builtin.copy:
@@ -222,7 +204,6 @@
 
       [Install]
       WantedBy=multi-user.target
-  changed_when: false
 
 - name: Copy job.yml from defaults to config
   copy:
@@ -232,19 +213,16 @@
     group: root
     mode: "0644"
     remote_src: yes
-  changed_when: false
 
 - name: Replace mode:on_demand with mode:"service" in job.yml
   replace:
     path: /var/www/shirasagi/config/job.yml
     regexp: 'mode: "on_demand"'
     replace: 'mode: "service"'
-  changed_when: false
 
 - name: Reload systemd to recognize the new service file
   systemd:
     daemon_reload: yes
-  changed_when: false
 
 - name: Enable and start unicorn.service
   systemd:
@@ -253,22 +231,20 @@
     state: started
 
 # デバッグ用のタスクを追加
-- name: Check status of unicorn.service for debugging
+- name: Debug unicorn.service status
   ansible.builtin.command: systemctl status unicorn.service
   register: unicorn_status_debug
   failed_when: false
-  changed_when: false
 
-- name: Show unicorn.service status for debugging
+- name: Show unicorn.service status
   ansible.builtin.debug:
     var: unicorn_status_debug.stdout_lines
 
-- name: Show detailed log of unicorn.service using journalctl for debugging
+- name: Show detailed log of unicorn.service using journalctl
   ansible.builtin.command: journalctl -xeu unicorn.service
   register: unicorn_journal_debug
-  changed_when: false
 
-- name: Display detailed log of unicorn.service for debugging
+- name: Display detailed log of unicorn.service
   ansible.builtin.debug:
     var: unicorn_journal_debug.stdout_lines
 
@@ -277,4 +253,3 @@
     name: shirasagi-job.service
     enabled: yes
     state: started
-  changed_when: false
