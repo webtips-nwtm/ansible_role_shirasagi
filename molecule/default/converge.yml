@@ -1,7 +1,6 @@
 ---
-- name: Verify role functionality
+- name: Converge
   hosts: all
   become: true # 必要に応じて特権ユーザーで実行
-  tasks:
-    - name: Import JTalk tests
-      import_playbook: ../../tests/test_jtalk.yml
+  roles:
+    - role: ansible_role_shirasagi # テスト対象のロール名を指定
