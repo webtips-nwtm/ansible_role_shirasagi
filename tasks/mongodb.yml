@@ -76,7 +76,6 @@
     name: mongod
     state: started
     enabled: true
-  become: true
   register: mongodb_service_status
-  changed_when: mongodb_service_status.status.State != 'running'
-  failed_when: mongodb_sservice_status.failed
+  changed_when: mongodb_service_status.status.ActiveState != 'active'
+  failed_when: mongodb_service_status.failed
