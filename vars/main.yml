@@ -4,9 +4,6 @@ ruby_version: "3.2.5"
 nodejs_version: "20.17.0"
 yarn_version: "1.22.22"
 
-#mongodb
-mongodb_version: "7.0"
-
 #mecab
 mecab_packages:
   - name: "MeCab IPADIC"
