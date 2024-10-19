@@ -1,5 +1,9 @@
 - name: Update package manager cache and install dependencies
   block:
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
     - name: Update all packages
       ansible.builtin.dnf:
         name: "*"
