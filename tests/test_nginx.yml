@@ -1,0 +1,65 @@
+---
+- name: Test Nginx setup
+  hosts: all
+  become: yes
+  vars_files:
+    - "{{ playbook_dir }}/../vars/main.yml" # ここで vars ファイルを読み込む
+  tasks:
+    - name: Check if Nginx repository file exists
+      stat:
+        path: /etc/yum.repos.d/nginx.repo
+      register: nginx_repo_file
+    - name: Assert Nginx repository file exists
+      assert:
+        that:
+          - nginx_repo_file.stat.exists
+          - nginx_repo_file.stat.isreg
+
+    - name: Check if Nginx is installed
+      shell: nginx -v
+      register: nginx_installed
+      ignore_errors: yes
+    - name: Assert Nginx is installed
+      assert:
+        that:
+          - "'nginx version' in nginx_installed.stderr"
+
+    - name: Check if Nginx is running
+      systemd:
+        name: nginx
+        state: started
+      register: nginx_status
+    - name: Assert Nginx is running
+      assert:
+        that:
+          - nginx_status.status.ActiveState == 'active'
+
+    - name: Check Nginx main configuration file exists
+      stat:
+        path: /etc/nginx/nginx.conf
+      register: nginx_conf_file
+    - name: Assert Nginx main configuration file exists
+      assert:
+        that:
+          - nginx_conf_file.stat.exists
+          - nginx_conf_file.stat.isreg
+
+    - name: Check http.conf exists in conf.d directory
+      stat:
+        path: /etc/nginx/conf.d/http.conf
+      register: http_conf_file
+    - name: Assert http.conf file exists
+      assert:
+        that:
+          - http_conf_file.stat.exists
+          - http_conf_file.stat.isreg
+
+    - name: Check if Nginx configuration is valid
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+      failed_when: nginx_test.rc != 0
+    - name: Assert Nginx configuration is valid
+      assert:
+        that:
+          - nginx_test.rc == 0
