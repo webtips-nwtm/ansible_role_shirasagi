@@ -1,20 +1,9 @@
 ---
 - name: Configure MongoDB repository
   block:
-    - name: Get system architecture
-      ansible.builtin.setup:
-        filter: ansible_architecture
-      register: arch_info
-      changed_when: false # 冪等性の確保
-      failed_when: arch_info is not defined # アーキテクチャ情報が取得できない場合のみ失敗
-
-    - name: Debug system architecture information
-      ansible.builtin.debug:
-        msg: "System architecture: {{ arch_info.ansible_facts.ansible_architecture }}"
-
     - name: Set architecture variable
       ansible.builtin.set_fact:
-        architecture: "{{ arch_info.ansible_facts.ansible_architecture }}"
+        architecture: "{{ ansible_architecture }}"
       when: ansible_os_family == "RedHat"
 
     - name: Add MongoDB repository for RedHat
@@ -47,8 +36,8 @@
     dest: /usr/lib/systemd/system/mongod.service.org
     remote_src: yes
     backup: no
-  when: not backup_file_stat.stat.exists # バックアップファイルが存在しない場合にのみ実行
-  changed_when: false # 冪等性のために変更がないと見なす
+  when: not backup_file_stat.stat.exists
+  changed_when: false # 冪等性のため変更なしと見なす
 
 - name: Check if we have write permissions to the backup file
   ansible.builtin.stat:
@@ -70,7 +59,7 @@
   ansible.builtin.lineinfile:
     path: /usr/lib/systemd/system/mongod.service
     line: "OOMScoreAdjust=-1000"
-    insertafter: "[Service]"
+    insertafter: '^\\[Service\\]'
 
 - name: Reload systemd to apply changes
   ansible.builtin.systemd:
