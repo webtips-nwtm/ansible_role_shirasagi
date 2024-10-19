@@ -1,2 +1,5 @@
 ---
-# handlers file for asdf
+- name: Reload Nginx
+  systemd:
+    name: nginx
+    state: reloaded

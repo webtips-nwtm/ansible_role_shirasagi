@@ -1,32 +1,46 @@
 ---
-- name: Create Nginx repository file
+- name: Create Nginx repository file if not exists
   template:
     src: nginx.repo.j2
     dest: /etc/yum.repos.d/nginx.repo
+  when: ansible_facts.packages['nginx'] is not defined
+  register: nginx_repo_created
+  notify: Reload Nginx
 
 - name: Install Nginx from the repository
   dnf:
     name: nginx
     state: present
     enablerepo: nginx
+  register: nginx_installed
 
 - name: Ensure Nginx is started and enabled
   systemd:
     name: nginx
     state: started
     enabled: yes
+  when: nginx_installed.changed
+
+- name: Deploy Nginx main configuration file
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    backup: yes
+  notify: Reload Nginx
 
 - name: Create standard Nginx configuration
   template:
     src: http.conf.j2
     dest: /etc/nginx/conf.d/http.conf
+  notify: Reload Nginx
 
 - name: Create header configuration
   template:
     src: header.conf.j2
     dest: /etc/nginx/conf.d/header.conf
+  notify: Reload Nginx
 
-- name: Create common cache settings
+- name: Ensure common cache directory exists
   file:
     path: /etc/nginx/conf.d/common/
     state: directory
@@ -35,23 +49,27 @@
   template:
     src: drop.conf.j2
     dest: /etc/nginx/conf.d/common/drop.conf
+  notify: Reload Nginx
 
 - name: Create botdrop cache configuration
   template:
     src: botdrop.conf.j2
     dest: /etc/nginx/conf.d/common/botdrop.conf
+  notify: Reload Nginx
 
 - name: Create security cache configuration
   template:
     src: security.conf.j2
     dest: /etc/nginx/conf.d/common/security.conf
+  notify: Reload Nginx
 
 - name: Create Shirasagi virtual host configuration
   template:
     src: virtual.conf.j2
     dest: /etc/nginx/conf.d/virtual.conf
+  notify: Reload Nginx
 
-- name: Create Shirasagi proxy configuration
+- name: Ensure server directory for Shirasagi exists
   file:
     path: /etc/nginx/conf.d/server/
     state: directory
@@ -60,14 +78,4 @@
   template:
     src: shirasagi.conf.j2
     dest: /etc/nginx/conf.d/server/shirasagi.conf
-
-- name: Test Nginx configuration
-  command: nginx -t
-  register: nginx_test
-  ignore_errors: true
-
-- name: Restart Nginx if configuration is valid
-  systemd:
-    name: nginx
-    state: restarted
-  when: nginx_test is defined and nginx_test.rc == 0
+  notify: Reload Nginx
