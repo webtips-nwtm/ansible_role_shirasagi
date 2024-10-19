@@ -78,4 +78,4 @@
     enabled: true
   register: mongodb_service_status
   changed_when: mongodb_service_status.status.ActiveState != 'active'
-  failed_when: mongodb_sservice_status.failed
+  failed_when: mongodb_service_status.failed
