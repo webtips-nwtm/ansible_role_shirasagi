@@ -3,14 +3,13 @@
   hosts: all
   become: true
   tasks:
-    - name: Verify MongoDB package is installed
+    - name: Get installed packages facts
       ansible.builtin.package_facts:
-      register: mongo_pkg
 
     - name: Assert MongoDB is installed
       ansible.builtin.assert:
         that:
-          - "'mongodb-org' in mongo_pkg.packages"
+          - "'mongodb-org' in ansible_facts.packages"
 
     - name: Verify mongod service is running
       ansible.builtin.shell: systemctl is-active mongod
