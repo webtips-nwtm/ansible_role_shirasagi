@@ -25,6 +25,7 @@
     url: "{{ item.url }}"
     dest: "/usr/local/src/{{ item.tar_name }}"
   loop: "{{ mecab_packages }}"
+  when: mecab_packages is defined # ループで空の値を処理しないための防御策
 
 - name: Check if MeCab IPADIC is already installed
   ansible.builtin.stat:
@@ -33,10 +34,16 @@
 
 - name: Install MeCab IPADIC
   block:
+    - name: Check if MeCab IPADIC patch is already downloaded
+      ansible.builtin.stat:
+        path: "/usr/local/src/mecab-ipadic-2.7.0-20070801.patch"
+      register: mecab_ipadic_patch_downloaded
+
     - name: Download MeCab IPADIC patch
       ansible.builtin.get_url:
         url: "https://raw.githubusercontent.com/shirasagi/shirasagi/stable/vendor/mecab/mecab-ipadic-2.7.0-20070801.patch"
         dest: "/usr/local/src/mecab-ipadic-2.7.0-20070801.patch"
+      when: not mecab_ipadic_patch_downloaded.stat.exists # ファイルが存在しない場合のみダウンロード
 
     - name: Extract MeCab IPADIC package
       ansible.builtin.unarchive:
@@ -130,13 +137,21 @@
       changed_when: "'linking shared-object MeCab.so' in build_output.stdout"
       failed_when: build_output.rc != 0
 
+    - name: Check if MeCab Ruby is already installed by Ruby
+      shell: |
+        . $HOME/.asdf/asdf.sh
+        ruby -r MeCab -e 'puts MeCab::VERSION'
+      register: mecab_ruby_installed
+      ignore_errors: true
+      changed_when: false
+
     - name: Install MeCab Ruby
       shell: make install
       args:
         chdir: /usr/local/src/mecab-ruby-0.996
-      when: mecab_ruby_installed.stat.exists == false
+      when: mecab_ruby_installed.rc != 0 # インストールされていない場合のみ実行
       register: install_mecab_ruby_output
-      changed_when: mecab_ruby_installed.stat.exists == false
+      changed_when: "'Nothing to be done' not in install_mecab_ruby_output.stdout"
 
 - name: Update shared library cache
   ansible.builtin.lineinfile:
