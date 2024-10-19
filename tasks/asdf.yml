@@ -1,5 +1,17 @@
 - name: Update package manager cache and install dependencies
   block:
+    - name: Check if updates are available
+      ansible.builtin.command: dnf check-update
+      register: updates_check
+      changed_when: false
+      failed_when: updates_check.rc not in [0, 100]
+
+    - name: Run system update if updates are available
+      ansible.builtin.command: dnf -y update
+      when: updates_check.rc == 100
+      changed_when: true
+      failed_when: false
+
     - name: Install dependencies with CRB enabled
       ansible.builtin.dnf:
         name:

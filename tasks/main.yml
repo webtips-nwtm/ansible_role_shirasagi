@@ -4,9 +4,8 @@
 - name: Load tasks from mecab.yml
   import_tasks: mecab.yml
 
-#- name: Load tasks from mongodb.yml
-#  import_tasks: mongodb.yml
-
+- name: Load tasks from mongodb.yml
+  import_tasks: mongodb.yml
 - name: Load tasks from shirasagi.yml
   import_tasks: shirasagi.yml
 
