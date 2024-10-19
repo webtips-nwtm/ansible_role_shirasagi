@@ -9,6 +9,7 @@
         name: "*"
         state: latest
         skip_broken: true
+      when: ansible_facts.packages | selectattr('state', 'eq', 'installed') | map(attribute='name') | difference([]) | length > 0
       become: true
 
     - name: Install dependencies with CRB enabled
