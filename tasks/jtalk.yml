@@ -33,6 +33,9 @@
   get_url:
     url: "{{ hts_engine_package.url }}"
     dest: "{{ src_dir }}/{{ hts_engine_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
   when: not hts_engine_stat.stat.exists
 
 - name: Check if hts_engine_API-1.08 is already extracted
@@ -69,6 +72,9 @@
   get_url:
     url: "{{ open_jtalk_package.url }}"
     dest: "{{ src_dir }}/{{ open_jtalk_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
   when: not open_jtalk_stat.stat.exists
 
 - name: Check if open_jtalk-1.07 is already extracted
@@ -105,6 +111,9 @@
   get_url:
     url: "{{ lame_package.url }}"
     dest: "{{ src_dir }}/{{ lame_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
   when: not lame_stat.stat.exists
 
 - name: Check if lame-3.99.5 is already extracted
@@ -141,6 +150,9 @@
   get_url:
     url: "{{ sox_package.url }}"
     dest: "{{ src_dir }}/{{ sox_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
   when: not sox_stat.stat.exists
 
 - name: Check if sox-14.4.1 is already extracted
