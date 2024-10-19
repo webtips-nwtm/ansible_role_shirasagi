@@ -2,8 +2,8 @@
 - name: Test Nginx setup
   hosts: all
   become: yes
-  vars_files:
-    - "{{ playbook_dir }}/../vars/main.yml" # ここで vars ファイルを読み込む
+  roles:
+    - ansible_role_shirasagi
   tasks:
     - name: Check if Nginx repository file exists
       stat:

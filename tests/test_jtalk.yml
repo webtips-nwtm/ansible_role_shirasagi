@@ -1,8 +1,8 @@
 ---
 - name: Test jtalk installation and versions
   hosts: all
-  vars_files:
-    - "{{ playbook_dir }}/../vars/main.yml" # ここで vars ファイルを読み込む
+  roles:
+    - ansible_role_shirasagi
   tasks:
     - name: Ensure hts_engine is installed
       command: which hts_engine
