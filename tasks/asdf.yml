@@ -1,15 +1,17 @@
 - name: Update package manager cache and install dependencies
   block:
-    - name: Gather package facts
-      ansible.builtin.package_facts:
-        manager: auto
+    - name: Check if updates are available
+      ansible.builtin.command: dnf check-update
+      register: update_available
+      failed_when: update_available.rc not in [0, 100]
+      changed_when: false
 
-    - name: Update all packages
+    - name: Update all packages if updates are available
       ansible.builtin.dnf:
         name: "*"
         state: latest
         skip_broken: true
-      when: ansible_facts.packages | selectattr('state', 'eq', 'installed') | map(attribute='name') | difference([]) | length > 0
+      when: update_available.rc == 100
       become: true
 
     - name: Install dependencies with CRB enabled
