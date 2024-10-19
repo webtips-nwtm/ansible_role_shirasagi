@@ -91,10 +91,12 @@
   ansible.builtin.set_fact:
     asdf_path: "/root/.asdf/bin:/root/.asdf/shims"
 
-- name: Check if bundler is installed
-  ansible.builtin.command: bundle --version
+- name: Check if bundler is installed in vendor/bundle
+  ansible.builtin.shell: |
+    export PATH="$PATH:{{ asdf_path }}" && bundle show bundler
   args:
     chdir: /var/www/shirasagi
+    executable: /bin/bash
   register: bundler_check
   failed_when: false
   changed_when: false
@@ -104,7 +106,7 @@
     export PATH="$PATH:{{ asdf_path }}" && gem install bundler
   args:
     executable: /bin/bash
-  when: bundler_check.stdout.find('true') == -1
+  when: "'Could not find gem' in bundler_check.stdout"
   become: true
   become_user: root
 
@@ -155,14 +157,12 @@
     owner: root
     group: root
     mode: "0755"
+    force: no # 冪等性のために既存ファイルが異なる場合のみ上書き
 
 - name: Debug content of the systemd service file
   ansible.builtin.command: cat /etc/systemd/system/unicorn.service
   register: systemd_file_content
-
-- name: Display systemd service file content
-  ansible.builtin.debug:
-    var: systemd_file_content.stdout
+  changed_when: false
 
 - name: Add EnvironmentFile line to the systemd service file
   lineinfile:
@@ -213,6 +213,7 @@
     group: root
     mode: "0644"
     remote_src: yes
+    force: no # 冪等性のために既存ファイルが異なる場合のみコピー
 
 - name: Replace mode:on_demand with mode:"service" in job.yml
   replace:
@@ -235,18 +236,12 @@
   ansible.builtin.command: systemctl status unicorn.service
   register: unicorn_status_debug
   failed_when: false
-
-- name: Show unicorn.service status
-  ansible.builtin.debug:
-    var: unicorn_status_debug.stdout_lines
+  changed_when: false
 
 - name: Show detailed log of unicorn.service using journalctl
   ansible.builtin.command: journalctl -xeu unicorn.service
   register: unicorn_journal_debug
-
-- name: Display detailed log of unicorn.service
-  ansible.builtin.debug:
-    var: unicorn_journal_debug.stdout_lines
+  changed_when: false
 
 - name: Enable and start shirasagi-job.service
   systemd:

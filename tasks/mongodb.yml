@@ -76,7 +76,12 @@
   ansible.builtin.systemd:
     daemon_reload: yes
 
-# MongoDBの起動とステータスの確認を一つに統合
+- name: Check if MongoDB is running
+  command: systemctl is-active mongod
+  register: mongodb_status
+  changed_when: false
+  failed_when: mongodb_status.rc != 0 and mongodb_status.stdout != "inactive"
+
 - name: Ensure MongoDB is running
   ansible.builtin.systemd:
     name: mongod
