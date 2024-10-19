@@ -2,6 +2,8 @@
 - name: Test MongoDB role
   hosts: all
   become: true
+  roles:
+    - ansible_role_shirasagi
   tasks:
     - name: Get installed packages facts
       ansible.builtin.package_facts:

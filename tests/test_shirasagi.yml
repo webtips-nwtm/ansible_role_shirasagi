@@ -2,6 +2,8 @@
 - name: Test Shirasagi setup and services
   hosts: all
   become: true
+  roles:
+    - ansible_role_shirasagi
   tasks:
     - name: Manage repositories and packages
       block:

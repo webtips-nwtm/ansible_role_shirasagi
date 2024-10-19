@@ -2,9 +2,8 @@
 - name: Test MeCab and MeCab Ruby installation
   hosts: all
   become: true
-  vars_files:
-    - ../vars/main.yml # 明示的に変数ファイルを読み込む
-
+  roles:
+    - ansible_role_shirasagi
   tasks:
     - name: Ensure Development Tools group is installed
       ansible.builtin.dnf:
