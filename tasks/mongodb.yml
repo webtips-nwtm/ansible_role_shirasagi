@@ -69,7 +69,7 @@
   command: systemctl is-active mongod
   register: mongodb_status
   changed_when: false
-  failed_when: mongodb_status.rc != 0 and mongodb_status.stdout != "inactive"
+  failed_when: mongodb_status.rc != 0 and mongodb_status.stdout not in ["inactive", "failed"]
 
 - name: Ensure MongoDB is running
   ansible.builtin.systemd:
@@ -77,3 +77,6 @@
     state: started
     enabled: true
   become: true
+  register: mongodb_service_status
+  changed_when: mongodb_service_status.status.State != 'running'
+  failed_when: mongodb_sservice_status.failed
