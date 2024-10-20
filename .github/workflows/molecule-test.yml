@@ -66,6 +66,8 @@ jobs:
         with:
           galaxy_api_key: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
           git_branch: ${{ github.ref_name }} # タグ名をブランチとして使用
+          github_user: ttanaka9211
+          github_repo: ansible_role_shirasagi
 
       - name: Check for errors during Ansible Galaxy release
         if: steps.galaxy_release.outcome == 'failure'
