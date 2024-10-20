@@ -1,0 +1,180 @@
+---
+- name: Ensure required packages are installed
+  package:
+    name:
+      - tar
+      - gzip
+      - unzip
+      - wget
+      - gcc
+      - g++
+      - make
+      - automake
+      - autoconf
+    state: present
+
+- name: Create directory for source files
+  file:
+    path: "{{ src_dir }}"
+    state: directory
+
+# hts_engine_API-1.08の処理
+- name: Check if hts_engine_API-1.08 binary exists
+  stat:
+    path: "/usr/local/bin/{{ hts_engine_package.binary }}"
+  register: hts_engine_binary
+
+- name: Check if hts_engine_API-1.08 is already downloaded
+  stat:
+    path: "{{ src_dir }}/{{ hts_engine_package.name }}.tar.gz"
+  register: hts_engine_stat
+
+- name: Download hts_engine_API-1.08 if not already downloaded
+  get_url:
+    url: "{{ hts_engine_package.url }}"
+    dest: "{{ src_dir }}/{{ hts_engine_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
+  when: not hts_engine_stat.stat.exists
+
+- name: Check if hts_engine_API-1.08 is already extracted
+  stat:
+    path: "{{ src_dir }}/{{ hts_engine_package.name }}"
+  register: hts_engine_extracted_stat
+
+- name: Extract hts_engine_API-1.08 if not already extracted
+  unarchive:
+    src: "{{ src_dir }}/{{ hts_engine_package.name }}.tar.gz"
+    dest: "{{ src_dir }}"
+    remote_src: yes
+  when: not hts_engine_extracted_stat.stat.exists
+
+- name: Run configure and make for hts_engine_API-1.08
+  shell: "{{ item }}"
+  args:
+    chdir: "{{ src_dir }}/{{ hts_engine_package.name }}"
+  with_items: "{{ hts_engine_package.configure_commands }}"
+  when: not hts_engine_binary.stat.exists
+
+# open_jtalkの処理
+- name: Check if open_jtalk-1.07 binary exists
+  stat:
+    path: "/usr/local/bin/{{ open_jtalk_package.binary }}"
+  register: open_jtalk_binary
+
+- name: Check if open_jtalk-1.07 is already downloaded
+  stat:
+    path: "{{ src_dir }}/{{ open_jtalk_package.name }}.tar.gz"
+  register: open_jtalk_stat
+
+- name: Download open_jtalk-1.07 if not already downloaded
+  get_url:
+    url: "{{ open_jtalk_package.url }}"
+    dest: "{{ src_dir }}/{{ open_jtalk_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
+  when: not open_jtalk_stat.stat.exists
+
+- name: Check if open_jtalk-1.07 is already extracted
+  stat:
+    path: "{{ src_dir }}/{{ open_jtalk_package.name }}"
+  register: open_jtalk_extracted_stat
+
+- name: Extract open_jtalk-1.07 if not already extracted
+  unarchive:
+    src: "{{ src_dir }}/{{ open_jtalk_package.name }}.tar.gz"
+    dest: "{{ src_dir }}"
+    remote_src: yes
+  when: not open_jtalk_extracted_stat.stat.exists
+
+- name: Run configure and make for open_jtalk-1.07
+  shell: "{{ item }}"
+  args:
+    chdir: "{{ src_dir }}/{{ open_jtalk_package.name }}"
+  with_items: "{{ open_jtalk_package.configure_commands }}"
+  when: not open_jtalk_binary.stat.exists
+
+# lameの処理
+- name: Check if lame-3.99.5 binary exists
+  stat:
+    path: "/usr/local/bin/{{ lame_package.binary }}"
+  register: lame_binary
+
+- name: Check if lame-3.99.5 is already downloaded
+  stat:
+    path: "{{ src_dir }}/{{ lame_package.name }}.tar.gz"
+  register: lame_stat
+
+- name: Download lame-3.99.5 if not already downloaded
+  get_url:
+    url: "{{ lame_package.url }}"
+    dest: "{{ src_dir }}/{{ lame_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
+  when: not lame_stat.stat.exists
+
+- name: Check if lame-3.99.5 is already extracted
+  stat:
+    path: "{{ src_dir }}/{{ lame_package.name }}"
+  register: lame_extracted_stat
+
+- name: Extract lame-3.99.5 if not already extracted
+  unarchive:
+    src: "{{ src_dir }}/{{ lame_package.name }}.tar.gz"
+    dest: "{{ src_dir }}"
+    remote_src: yes
+  when: not lame_extracted_stat.stat.exists
+
+- name: Run configure and make for lame-3.99.5
+  shell: "{{ item }}"
+  args:
+    chdir: "{{ src_dir }}/{{ lame_package.name }}"
+  with_items: "{{ lame_package.configure_commands }}"
+  when: not lame_binary.stat.exists
+
+# soxの処理
+- name: Check if sox-14.4.1 binary exists
+  stat:
+    path: "/usr/local/bin/{{ sox_package.binary }}"
+  register: sox_binary
+
+- name: Check if sox-14.4.1 is already downloaded
+  stat:
+    path: "{{ src_dir }}/{{ sox_package.name }}.tar.gz"
+  register: sox_stat
+
+- name: Download sox-14.4.1 if not already downloaded
+  get_url:
+    url: "{{ sox_package.url }}"
+    dest: "{{ src_dir }}/{{ sox_package.name }}.tar.gz"
+    timeout: 60
+  retries: 3
+  delay: 10
+  when: not sox_stat.stat.exists
+
+- name: Check if sox-14.4.1 is already extracted
+  stat:
+    path: "{{ src_dir }}/{{ sox_package.name }}"
+  register: sox_extracted_stat
+
+- name: Extract sox-14.4.1 if not already extracted
+  unarchive:
+    src: "{{ src_dir }}/{{ sox_package.name }}.tar.gz"
+    dest: "{{ src_dir }}"
+    remote_src: yes
+  when: not sox_extracted_stat.stat.exists
+
+- name: Run configure and make for sox-14.4.1
+  shell: "{{ item }}"
+  args:
+    chdir: "{{ src_dir }}/{{ sox_package.name }}"
+  with_items: "{{ sox_package.configure_commands }}"
+  when: not sox_binary.stat.exists
+
+# 最後に共有ライブラリの更新
+- name: Update shared library cache
+  command: ldconfig
+  when: hts_engine_extracted_stat.changed or open_jtalk_extracted_stat.changed or lame_extracted_stat.changed or sox_extracted_stat.changed

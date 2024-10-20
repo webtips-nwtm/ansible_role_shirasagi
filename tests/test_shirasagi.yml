@@ -1,0 +1,187 @@
+---
+- name: Test Shirasagi setup and services
+  hosts: all
+  become: true
+  roles:
+    - ansible_role_shirasagi
+  tasks:
+    - name: Manage repositories and packages
+      block:
+        - name: Update dnf cache for RedHat系
+          ansible.builtin.dnf:
+            update_cache: yes
+          become: true
+          when: ansible_os_family == "RedHat"
+
+        - name: Ensure EPEL repository is available but disabled on Red Hat-based systems
+          ansible.builtin.yum_repository:
+            name: epel
+            description: "Extra Packages for Enterprise Linux"
+            baseurl: "https://download.fedoraproject.org/pub/epel/$releasever/Everything/$basearch/"
+            enabled: no
+          when: ansible_os_family == "RedHat"
+
+        - name: Install Development Tools on Red Hat-based systems
+          ansible.builtin.yum:
+            name: "@Development Tools"
+            state: present
+          when: ansible_os_family == "RedHat"
+
+        - name: Install ImageMagick with EPEL temporarily enabled on Red Hat-based systems
+          ansible.builtin.yum:
+            name:
+              - ImageMagick
+              - ImageMagick-devel
+            enablerepo: epel
+            disable_gpg_check: yes
+            state: present
+          when: ansible_os_family == "RedHat"
+
+    - name: Ensure git is installed
+      ansible.builtin.package:
+        name: git
+        state: present
+
+    - name: Get system architecture
+      ansible.builtin.setup:
+        filter: ansible_architecture
+      register: arch_info
+      changed_when: false
+
+    - name: Debug system architecture information
+      ansible.builtin.debug:
+        var: arch_info
+
+    - name: Set architecture variable
+      ansible.builtin.set_fact:
+        architecture: "{{ arch_info.ansible_facts.ansible_architecture }}"
+      when: arch_info.ansible_facts.ansible_architecture is defined
+
+    - name: Clone Shirasagi repository with a specific branch
+      ansible.builtin.git:
+        repo: "{{ shirasagi_repo }}"
+        dest: "{{ dest_dir }}"
+        version: "{{ shirasagi_branch }}"
+        update: yes
+
+    - name: Create /etc/profile.d/disable-spring.sh to disable Spring
+      copy:
+        content: |
+          export DISABLE_SPRING=1
+        dest: /etc/profile.d/disable-spring.sh
+        owner: root
+        group: root
+        mode: "0755"
+      changed_when: false
+
+    - name: Copy the systemd service file
+      copy:
+        src: /var/www/shirasagi/bin/unicorn-centos7_asdf.service
+        dest: /etc/systemd/system/unicorn.service
+        remote_src: yes
+        owner: root
+        group: root
+        mode: "0755"
+      changed_when: false
+
+    - name: Debug content of the systemd service file
+      ansible.builtin.command: cat /etc/systemd/system/unicorn.service
+      register: systemd_file_content
+      changed_when: false
+
+    - name: Display systemd service file content
+      ansible.builtin.debug:
+        var: systemd_file_content.stdout
+
+    - name: Add EnvironmentFile line to the systemd service file
+      lineinfile:
+        path: /etc/systemd/system/unicorn.service
+        line: "EnvironmentFile=/etc/sysconfig/unicorn"
+        insertafter: "User=root"
+        state: present
+      changed_when: false
+
+    - name: Ensure /etc/sysconfig directory exists
+      file:
+        path: /etc/sysconfig
+        state: directory
+
+    - name: Create /etc/sysconfig/unicorn with memory limits
+      copy:
+        content: |
+          UNICORN_KILLER_MEM_MIN=576
+          UNICORN_KILLER_MEM_MAX=640
+        dest: /etc/sysconfig/unicorn
+        owner: root
+        group: root
+        mode: "0644"
+      changed_when: false
+
+    - name: Create systemd service file for Shirasagi Job Server
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/shirasagi-job.service
+        content: |
+          [Unit]
+          Description=Shirasagi Job Server
+          After=mongod.service
+
+          [Service]
+          User=root
+          WorkingDirectory=/var/www/shirasagi
+          Type=simple
+          Restart=always
+          ExecStart=/bin/bash -lc 'bundle exec rake job:run'
+          ExecStop=/usr/bin/kill -QUIT $MAINPID
+
+          [Install]
+          WantedBy=multi-user.target
+      changed_when: false
+
+    - name: Copy job.yml from defaults to config
+      copy:
+        src: /var/www/shirasagi/config/defaults/job.yml
+        dest: /var/www/shirasagi/config/job.yml
+        owner: root
+        group: root
+        mode: "0644"
+        remote_src: yes
+      changed_when: false
+
+    - name: Replace mode:on_demand with mode:"service" in job.yml
+      replace:
+        path: /var/www/shirasagi/config/job.yml
+        regexp: 'mode: "on_demand"'
+        replace: 'mode: "service"'
+      changed_when: false
+
+    - name: Reload systemd to recognize the new service file
+      systemd:
+        daemon_reload: yes
+      changed_when: false
+
+    - name: Check status of unicorn.service
+      ansible.builtin.command: systemctl status unicorn.service
+      register: unicorn_status
+      changed_when: false
+
+    - name: Show unicorn service status for debugging
+      ansible.builtin.debug:
+        var: unicorn_status.stdout_lines
+      changed_when: false
+
+    - name: Show detailed log of unicorn.service for debugging
+      ansible.builtin.command: journalctl -xeu unicorn.service
+      register: unicorn_journal
+      changed_when: false
+
+    - name: Display detailed log of unicorn.service
+      ansible.builtin.debug:
+        var: unicorn_journal.stdout_lines
+      changed_when: false
+
+    - name: Enable and start shirasagi-job.service
+      systemd:
+        name: shirasagi-job.service
+        enabled: yes
+        state: started
+      changed_when: false

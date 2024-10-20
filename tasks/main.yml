@@ -1,141 +1,16 @@
 ---
-- name: Update package manager cache and install dependencies
-  block:
-    - name: Update all packages
-      ansible.builtin.dnf:
-        name: "*"
-        state: latest
-        skip_broken: true
+- name: Load tasks from asdf.yml
+  import_tasks: asdf.yml
+- name: Load tasks from mecab.yml
+  import_tasks: mecab.yml
 
-    - name: Install libyaml-devel on Red Hat-based systems (temporarily enabling CRB)
-      ansible.builtin.dnf:
-        name: libyaml-devel
-        enablerepo: crb
-        state: present
-      when: ansible_os_family == "RedHat"
+- name: Load tasks from mongodb.yml
+  import_tasks: mongodb.yml
+- name: Load tasks from shirasagi.yml
+  import_tasks: shirasagi.yml
 
-    - name: Install dependencies for RedHat系
-      ansible.builtin.dnf:
-        name:
-          - tar
-          - openssl-devel
-          - libffi-devel
-          - which
-          - git
-          - tar
-          #- curl
-          - gcc
-          - make
-          - bzip2
-          - readline-devel
-          - zlib-devel
-          - wget
-        state: present
-      become: true
-      when: ansible_os_family == "RedHat"
+- name: Load tasks from jtalk.yml
+  import_tasks: jtalk.yml
 
-  when: ansible_os_family == "RedHat"
-
-- name: Check if asdf is already installed
-  ansible.builtin.stat:
-    path: ~/.asdf
-  register: asdf_installed
-
-- name: Clone asdf repository
-  ansible.builtin.git:
-    repo: "https://github.com/asdf-vm/asdf.git"
-    dest: ~/.asdf
-    version: "{{ asdf_version }}"
-  when: not asdf_installed.stat.exists
-
-- name: Add asdf to shell
-  ansible.builtin.shell: |
-    echo -e '\n. $HOME/.asdf/asdf.sh' >> ~/.bashrc
-    echo -e '\n. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc
-  args:
-    executable: /bin/bash
-  when: not asdf_installed.stat.exists
-
-- name: Source asdf in current session
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh
-  args:
-    executable: /bin/bash
-  changed_when: false
-
-- name: Check if Ruby plugin is installed
-  command: ~/.asdf/bin/asdf plugin-list
-  register: ruby_plugin_check
-  changed_when: false
-
-- name: Install Ruby plugin if not installed
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf plugin-add ruby https://github.com/asdf-vm/asdf-ruby.git
-  args:
-    executable: /bin/bash
-  when: "'ruby' not in ruby_plugin_check.stdout_lines"
-  become: true
-
-- name: Check if Ruby {{ ruby_version }} is installed
-  command: ~/.asdf/bin/asdf list
-  register: ruby_check
-  changed_when: false
-
-- name: Install Ruby {{ ruby_version }} if not installed
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf install ruby {{ ruby_version }} && asdf global ruby {{ ruby_version }}
-  args:
-    executable: /bin/bash
-  when: ruby_version not in ruby_check.stdout
-
-# Node.js Plugin Management
-- name: Check if nodejs plugin is installed
-  command: ~/.asdf/bin/asdf plugin-list
-  register: nodejs_plugin_check
-  changed_when: false
-
-- name: Install nodejs plugin if not installed
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf plugin-add nodejs https://github.com/asdf-vm/asdf-nodejs.git
-  args:
-    executable: /bin/bash
-  when: "'nodejs' not in nodejs_plugin_check.stdout_lines"
-  become: true
-
-- name: Check if Node.js {{ nodejs_version }} is installed
-  command: ~/.asdf/bin/asdf list
-  register: nodejs_check
-  changed_when: false
-
-- name: Install Node.js {{ nodejs_version }} if not installed
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf install nodejs {{ nodejs_version }} && asdf global nodejs {{ nodejs_version }}
-  args:
-    executable: /bin/bash
-  when: nodejs_version not in nodejs_check.stdout
-
-# Yarn Plugin Management
-- name: Check if yarn plugin is installed
-  command: ~/.asdf/bin/asdf plugin-list
-  register: yarn_plugin_check
-  changed_when: false
-
-- name: Install yarn plugin if not installed
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf plugin-add yarn
-  args:
-    executable: /bin/bash
-  when: "'yarn' not in yarn_plugin_check.stdout_lines"
-  become: true
-
-- name: Check if Yarn {{ yarn_version }} is installed
-  command: ~/.asdf/bin/asdf list
-  register: yarn_check
-  changed_when: false
-
-- name: Install Yarn {{ yarn_version }} if not installed
-  ansible.builtin.shell: |
-    . ~/.asdf/asdf.sh && asdf install yarn {{ yarn_version }} && asdf global yarn {{ yarn_version }}
-  args:
-    executable: /bin/bash
-  when: yarn_version not in yarn_check.stdout
+- name: Load tasks from nginx.yml
+  import_tasks: nginx.yml
