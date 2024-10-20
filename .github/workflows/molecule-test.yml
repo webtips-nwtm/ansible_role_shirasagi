@@ -61,8 +61,14 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Ansible Galaxy release
+        id: galaxy_release
         uses: robertdebock/galaxy-action@1.2.0
         with:
           galaxy_api_key: ${{ secrets.galaxy_api_key }}
           version: ${{ github.ref_name }} # タグ名を使用してバージョンを指定
 
+      - name: Check for errors during Ansible Galaxy release
+        if: steps.galaxy_release.outcome == 'failure'
+        run: |
+          echo "Ansible Galaxy release failed. Please check the logs for details."
+          exit 1
