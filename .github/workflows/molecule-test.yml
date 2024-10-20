@@ -65,7 +65,7 @@ jobs:
         uses: robertdebock/galaxy-action@1.2.0
         with:
           galaxy_api_key: ${{ secrets.galaxy_api_key }}
-          version: ${{ github.ref_name }} # タグ名を使用してバージョンを指定
+          git_branch: ${{ github.ref_name }} # タグ名をブランチとして使用
 
       - name: Check for errors during Ansible Galaxy release
         if: steps.galaxy_release.outcome == 'failure'
