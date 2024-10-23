@@ -7,16 +7,15 @@
       become: true
       when: ansible_os_family == "RedHat"
 
-    - name: Ensure EPEL repository is available
-      ansible.builtin.dnf:
-        name: epel-release
-        state: present
-      when: ansible_os_family == "RedHat"
-
-    - name: Disable EPEL repository
+    - name: Add EPEL repository (disabled by default)
       ansible.builtin.yum_repository:
         name: epel
-        enabled: no
+        description: "Extra Packages for Enterprise Linux"
+        baseurl: "https://download.fedoraproject.org/pub/epel/$releasever/Everything/$basearch"
+        gpgcheck: yes
+        gpgkey: "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
+        enabled: no # 無効化
+        state: present
       when: ansible_os_family == "RedHat"
 
     - name: Ensure EPEL repository excludes Zabbix packages
