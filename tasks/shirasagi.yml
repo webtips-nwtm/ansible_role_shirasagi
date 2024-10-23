@@ -21,7 +21,8 @@
     - name: Ensure EPEL repository excludes Zabbix packages
       ansible.builtin.lineinfile:
         path: /etc/yum.repos.d/epel.repo
-        regexp: '^excludepkgs=zabbix\*'
+        regexp: "^excludepkgs="
+        insertafter: "^#.*baseurl=.*"
         line: "excludepkgs=zabbix*"
         state: present
       when: ansible_os_family == "RedHat"
