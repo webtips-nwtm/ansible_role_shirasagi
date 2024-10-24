@@ -1,0 +1,6 @@
+---
+- name: Converge
+  hosts: all
+  become: true # 必要に応じて特権ユーザーで実行
+  roles:
+    - role: ansible_role_shirasagi # テスト対象のロール名を指定

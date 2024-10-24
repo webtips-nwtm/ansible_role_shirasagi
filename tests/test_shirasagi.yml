@@ -1,0 +1,48 @@
+---
+- name: Verify system state after playbook execution
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if EPEL repo is installed
+      ansible.builtin.shell: yum repolist enabled | grep epel
+      register: epel_check
+      changed_when: false
+      failed_when: epel_check.rc != 0
+
+    - name: Check if ImageMagick is installed
+      ansible.builtin.command: rpm -q ImageMagick
+      register: imagemagick_check
+      changed_when: false
+      failed_when: imagemagick_check.rc != 0
+
+    - name: Check if Unicorn service is running
+      ansible.builtin.systemd:
+        name: unicorn.service
+        state: started
+      register: unicorn_service
+      changed_when: false
+      failed_when: unicorn_service.status.LoadState != "loaded"
+
+    - name: Check if Shirasagi Job Server is running
+      ansible.builtin.systemd:
+        name: shirasagi-job.service
+        state: started
+      register: shirasagi_job_service
+      changed_when: false
+      failed_when: shirasagi_job_service.status.LoadState != "loaded"
+
+    - name: Verify if the Shirasagi repository exists
+      ansible.builtin.stat:
+        path: /var/www/shirasagi
+      register: shirasagi_repo_check
+      changed_when: false
+      failed_when: shirasagi_repo_check.stat.exists == false
+
+    - name: Verify if the necessary gems are installed
+      ansible.builtin.shell: |
+        export PATH="$PATH:/root/.asdf/bin:/root/.asdf/shims" && bundle check
+      args:
+        chdir: /var/www/shirasagi
+      register: gem_check
+      changed_when: false
+      failed_when: gem_check.rc != 0

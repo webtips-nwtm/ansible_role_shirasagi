@@ -1,0 +1,170 @@
+---
+- name: Ensure Development Tools group is installed
+  ansible.builtin.dnf:
+    name: "@Development Tools"
+    state: present
+
+- name: Ensure required packages for build are installed
+  ansible.builtin.dnf:
+    name:
+      - wget
+    state: present
+
+- name: Install MeCab and related packages
+  ansible.builtin.dnf:
+    name:
+      - mecab
+      - mecab-devel
+    state: present
+    enablerepo:
+      - epel
+      - crb
+
+- name: Download MeCab packages
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ src_dir }}/{{ item.tar_name }}"
+  loop: "{{ mecab_packages }}"
+  when: mecab_packages is defined # ループで空の値を処理しないための防御策
+
+- name: Check if MeCab IPADIC is already installed
+  ansible.builtin.stat:
+    path: /usr/local/lib/libmecab.so
+  register: mecab_ipadic_installed
+
+- name: Install MeCab IPADIC
+  block:
+    - name: Check if MeCab IPADIC patch is already downloaded
+      ansible.builtin.stat:
+        path: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801.patch"
+      register: mecab_ipadic_patch_downloaded
+
+    - name: Download MeCab IPADIC patch
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/shirasagi/shirasagi/stable/vendor/mecab/mecab-ipadic-2.7.0-20070801.patch"
+        dest: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801.patch"
+      when: not mecab_ipadic_patch_downloaded.stat.exists # ファイルが存在しない場合のみダウンロード
+
+    - name: Extract MeCab IPADIC package
+      ansible.builtin.unarchive:
+        src: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801.tar.gz"
+        dest: "{{ src_dir }}"
+        remote_src: yes
+        creates: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801"
+
+    - name: Check if the target file for patch exists
+      ansible.builtin.stat:
+        path: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801/Noun.adverbal.csv"
+      register: target_file
+
+    - name: Check if the patch is already applied
+      shell: "patch --dry-run -p1 < {{ src_dir }}/mecab-ipadic-2.7.0-20070801.patch"
+      args:
+        chdir: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801"
+      when: target_file.stat.exists
+      register: patch_check
+      failed_when: "'Skipping patch.' not in patch_check.stdout and patch_check.rc != 0"
+      changed_when: "'Skipping patch.' not in patch_check.stdout"
+
+    - name: Apply the patch if it's not already applied
+      shell: "patch -p1 < {{ src_dir }}/mecab-ipadic-2.7.0-20070801.patch"
+      args:
+        chdir: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801"
+      when: "'Skipping patch.' not in patch_check.stdout"
+      register: patch_apply_result
+      changed_when: "'Skipping patch.' not in patch_apply_result.stdout"
+
+    - name: Check if MeCab IPADIC Makefile exists
+      ansible.builtin.stat:
+        path: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801/Makefile"
+      register: mecab_ipadic_makefile
+
+    - name: Run configure for MeCab IPADIC
+      command: ./configure --with-charset=UTF-8
+      args:
+        chdir: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801"
+      when: mecab_ipadic_makefile.stat.exists == false
+      register: configure_result
+
+    - name: Build MeCab IPADIC
+      shell: make
+      args:
+        chdir: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801"
+      when: configure_result is defined and configure_result.changed and mecab_ipadic_installed.stat.exists == false
+
+    - name: Install MeCab IPADIC
+      shell: make install
+      args:
+        chdir: "{{ src_dir }}/mecab-ipadic-2.7.0-20070801"
+      when: mecab_ipadic_installed.stat.exists == false
+      register: mecab_ipadic_installed_result
+      changed_when: "'Nothing to be done' not in mecab_ipadic_installed_result.stdout"
+
+- name: Check if MeCab Ruby is already installed
+  ansible.builtin.stat:
+    path: "/root/.asdf/installs/ruby/{{ ruby_version }}/lib/ruby/site_ruby/{{ ruby_version }}/x86_64-linux/mecab.so"
+  register: mecab_ruby_installed
+
+- name: Install MeCab Ruby
+  block:
+    - name: Extract MeCab Ruby source code
+      ansible.builtin.unarchive:
+        src: "{{ src_dir }}/mecab-ruby-0.996.tar.gz"
+        dest: "{{ src_dir }}"
+        remote_src: yes
+        creates: "{{ src_dir }}/mecab-ruby-0.996"
+
+    - name: Check if MeCab Ruby Makefile exists
+      ansible.builtin.stat:
+        path: "{{ src_dir }}/mecab-ruby-0.996/Makefile"
+      register: ruby_makefile_exists
+
+    - name: Generate Makefile for MeCab Ruby using asdf
+      shell: |
+        . $HOME/.asdf/asdf.sh
+        ruby extconf.rb
+      args:
+        chdir: "{{ src_dir }}/mecab-ruby-0.996"
+      register: generate_makefile_output
+      when: ruby_makefile_exists.stat.exists == false
+      changed_when: ruby_makefile_exists.stat.exists == false
+
+    - name: Build MeCab Ruby
+      shell: "make"
+      args:
+        chdir: "{{ src_dir }}/mecab-ruby-0.996"
+      register: build_output
+      changed_when: "'linking shared-object MeCab.so' in build_output.stdout"
+      failed_when: build_output.rc != 0
+
+    - name: Check if MeCab Ruby is already installed by Ruby
+      shell: |
+        . $HOME/.asdf/asdf.sh
+        ruby -r MeCab -e 'puts MeCab::VERSION'
+      register: mecab_ruby_installed
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install MeCab Ruby
+      shell: make install
+      args:
+        chdir: "{{ src_dir }}/mecab-ruby-0.996"
+      when: mecab_ruby_installed.rc != 0 # インストールされていない場合のみ実行
+      register: install_mecab_ruby_output
+      changed_when: "'Nothing to be done' not in install_mecab_ruby_output.stdout"
+
+- name: Update shared library cache
+  ansible.builtin.lineinfile:
+    path: /etc/ld.so.conf
+    line: "/usr/local/lib"
+    state: present
+
+- name: Check if libmecab.so exists
+  ansible.builtin.stat:
+    path: /usr/local/lib/libmecab.so
+  register: mecab_lib_check
+
+- name: Run ldconfig
+  ansible.builtin.command:
+    cmd: ldconfig
+  when: mecab_lib_check.stat.exists
