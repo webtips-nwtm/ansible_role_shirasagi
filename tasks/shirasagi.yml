@@ -5,7 +5,12 @@
       ansible.builtin.dnf:
         update_cache: yes
       become: true
-      when: ansible_os_family == "RedHat"
+
+    - name: Check if EPEL repository is already installed
+      ansible.builtin.stat:
+        path: /etc/yum.repos.d/epel.repo
+      register: epel_repo
+      changed_when: false
 
     - name: Add EPEL repository (disabled by default)
       ansible.builtin.yum_repository:
@@ -16,22 +21,30 @@
         gpgkey: "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
         enabled: no # 無効化
         state: present
-      when: ansible_os_family == "RedHat"
+      when: epel_repo.stat.exists == false
 
     - name: Ensure EPEL repository excludes Zabbix packages
       ansible.builtin.lineinfile:
         path: /etc/yum.repos.d/epel.repo
         regexp: "^excludepkgs="
+        line: "excludepkgs=zabbix*"
         insertafter: "^#.*baseurl=.*"
+        create: yes # ファイルが存在しない場合は作成
+        state: present
+      when: epel_repo.stat.exists == true
+
+    - name: Ensure EPEL repository includes 'excludepkgs=' line if missing
+      ansible.builtin.lineinfile:
+        path: /etc/yum.repos.d/epel.repo
+        regexp: "^#.*baseurl=.*"
         line: "excludepkgs=zabbix*"
         state: present
-      when: ansible_os_family == "RedHat"
+      when: epel_repo.stat.exists == true
 
     - name: Install Development Tools on Red Hat-based systems
       ansible.builtin.dnf:
         name: "@Development Tools"
         state: present
-      when: ansible_os_family == "RedHat"
 
     - name: Install ImageMagick with EPEL temporarily enabled on Red Hat-based systems
       ansible.builtin.dnf:
@@ -41,7 +54,8 @@
         enablerepo: epel
         disable_gpg_check: yes
         state: present
-      when: ansible_os_family == "RedHat"
+
+  when: ansible_os_family == "RedHat"
 
 - name: Ensure git is installed
   ansible.builtin.package:
@@ -53,10 +67,6 @@
     filter: ansible_architecture
   register: arch_info
   changed_when: false
-
-- name: Debug system architecture information
-  ansible.builtin.debug:
-    var: arch_info
 
 - name: Set architecture variable
   ansible.builtin.set_fact:
@@ -173,11 +183,6 @@
     mode: "0755"
     force: no # 冪等性のために既存ファイルが異なる場合のみ上書き
 
-- name: Debug content of the systemd service file
-  ansible.builtin.command: cat /etc/systemd/system/unicorn.service
-  register: systemd_file_content
-  changed_when: false
-
 - name: Add EnvironmentFile line to the systemd service file
   lineinfile:
     path: /etc/systemd/system/unicorn.service
@@ -244,18 +249,6 @@
     name: unicorn.service
     enabled: yes
     state: started
-
-# デバッグ用のタスクを追加
-- name: Debug unicorn.service status
-  ansible.builtin.command: systemctl status unicorn.service
-  register: unicorn_status_debug
-  failed_when: false
-  changed_when: false
-
-- name: Show detailed log of unicorn.service using journalctl
-  ansible.builtin.command: journalctl -xeu unicorn.service
-  register: unicorn_journal_debug
-  changed_when: false
 
 - name: Enable and start shirasagi-job.service
   systemd:

@@ -32,6 +32,7 @@ urls:
 shirasagi_branch: "stable"
 shirasagi_repo: "https://github.com/shirasagi/shirasagi.git"
 dest_dir: "/var/www/shirasagi"
+shirasagi_hosts: "www"
 
 #nginx settings
 server_name: "example.jp"
