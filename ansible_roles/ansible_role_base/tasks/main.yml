@@ -1,0 +1,16 @@
+---
+- name: Load tasks from LVM.yml
+  import_tasks: LVM.yml
+  tags: lvm
+
+- name: Load tasks from base.yml
+  import_tasks: base.yml
+
+- name: Load tasks from firewalld.yml
+  import_tasks: firewalld.yml
+
+- name: Load tasks from file_descriptor.yml
+  import_tasks: file_descriptor.yml
+
+- name: Load tasks from zabbix.yml
+  import_tasks: zabbix.yml

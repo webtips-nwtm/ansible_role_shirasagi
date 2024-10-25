@@ -1,0 +1,104 @@
+---
+# /etc/security/limits.confのバックアップ
+- name: Check if /etc/security/limits.conf.org already exists
+  ansible.builtin.stat:
+    path: /etc/security/limits.conf.org
+  register: limits_conf_backup
+
+- name: Backup /etc/security/limits.conf with .org extension
+  ansible.builtin.copy:
+    src: /etc/security/limits.conf
+    dest: /etc/security/limits.conf.org
+    remote_src: yes
+    backup: yes
+  when: not limits_conf_backup.stat.exists
+
+- name: Preserve timestamp for /etc/security/limits.conf.org
+  ansible.builtin.command: touch -r /etc/security/limits.conf /etc/security/limits.conf.org
+  when: not limits_conf_backup.stat.exists
+
+# ソフトファイルリミットの設定
+- name: Ensure file limits are set in /etc/security/limits.conf
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    regexp: '^(\*\s+soft\s+nofile)'
+    line: "* soft nofile 131072"
+    state: present
+  notify: Restart necessary services
+
+# ハードファイルリミットの設定
+- name: Ensure hard file limits are set in /etc/security/limits.conf
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    regexp: '^(\*\s+hard\s+nofile)'
+    line: "* hard nofile 131072"
+    state: present
+  notify: Restart necessary services
+
+# /etc/systemd/system.confのバックアップ
+- name: Check if /etc/systemd/system.conf.org already exists
+  ansible.builtin.stat:
+    path: /etc/systemd/system.conf.org
+  register: systemd_conf_backup
+
+- name: Backup /etc/systemd/system.conf with .org extension
+  ansible.builtin.copy:
+    src: /etc/systemd/system.conf
+    dest: /etc/systemd/system.conf.org
+    remote_src: yes
+    backup: yes
+  when: not systemd_conf_backup.stat.exists
+
+- name: Preserve timestamp for /etc/systemd/system.conf.org
+  ansible.builtin.command: touch -r /etc/systemd/system.conf /etc/systemd/system.conf.org
+  when: not systemd_conf_backup.stat.exists
+
+# systemdのリミット設定
+- name: Ensure DefaultLimitNOFILE and DefaultLimitNPROC are set in /etc/systemd/system.conf
+  ansible.builtin.blockinfile:
+    path: /etc/systemd/system.conf
+    block: |
+      [Manager]
+      DefaultLimitNOFILE=131072
+      DefaultLimitNPROC=131072
+    create: yes
+
+# /etc/sysctl.confのバックアップ
+- name: Check if /etc/sysctl.conf.org already exists
+  ansible.builtin.stat:
+    path: /etc/sysctl.conf.org
+  register: sysctl_conf_backup
+
+# moleculeテスト用
+- name: Ensure /etc/sysctl.conf exists
+  ansible.builtin.file:
+    path: /etc/sysctl.conf
+    state: touch
+  when: not sysctl_conf_backup.stat.exists
+
+- name: Backup /etc/sysctl.conf with .org extension
+  ansible.builtin.copy:
+    src: /etc/sysctl.conf
+    dest: /etc/sysctl.conf.org
+    remote_src: yes
+    backup: yes
+  when: not sysctl_conf_backup.stat.exists
+
+- name: Preserve timestamp for /etc/sysctl.conf.org
+  ansible.builtin.command: touch -r /etc/sysctl.conf /etc/sysctl.conf.org
+  when: not sysctl_conf_backup.stat.exists
+
+# inotify設定の変更
+- name: Ensure inotify watches limit is set in /etc/sysctl.conf
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^fs\.inotify\.max_user_watches'
+    line: "fs.inotify.max_user_watches = 819200"
+    state: present
+
+# sysctl設定の適用
+- name: Apply sysctl settings
+  ansible.builtin.sysctl:
+    name: fs.inotify.max_user_watches
+    value: 819200
+    state: present

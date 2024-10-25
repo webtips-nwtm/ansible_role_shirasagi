@@ -1,0 +1,96 @@
+---
+- name: Verify system configuration changes
+  hosts: all
+  become: true
+  tasks:
+    # 1. /etc/security/limits.confのバックアップ確認
+    - name: Check if /etc/security/limits.conf.org exists
+      ansible.builtin.stat:
+        path: /etc/security/limits.conf.org
+      register: limits_conf_backup_check
+
+    - name: Assert that /etc/security/limits.conf.org exists
+      ansible.builtin.assert:
+        that:
+          - limits_conf_backup_check.stat.exists
+
+    # 2. /etc/security/limits.confのソフトリミット確認
+    - name: Check soft file limit in /etc/security/limits.conf
+      ansible.builtin.command:
+        cmd: grep -E '^\* soft nofile 131072' /etc/security/limits.conf
+      register: soft_limit_check
+      failed_when: soft_limit_check.rc != 0
+
+    - name: Assert that soft file limit is set correctly
+      ansible.builtin.assert:
+        that:
+          - soft_limit_check.rc == 0
+
+    # 3. /etc/security/limits.confのハードリミット確認
+    - name: Check hard file limit in /etc/security/limits.conf
+      ansible.builtin.command:
+        cmd: grep -E '^\* hard nofile 131072' /etc/security/limits.conf
+      register: hard_limit_check
+      failed_when: hard_limit_check.rc != 0
+
+    - name: Assert that hard file limit is set correctly
+      ansible.builtin.assert:
+        that:
+          - hard_limit_check.rc == 0
+
+    # 4. /etc/systemd/system.confのバックアップ確認
+    - name: Check if /etc/systemd/system.conf.org exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system.conf.org
+      register: systemd_conf_backup_check
+
+    - name: Assert that /etc/systemd/system.conf.org exists
+      ansible.builtin.assert:
+        that:
+          - systemd_conf_backup_check.stat.exists
+
+    # 5. /etc/systemd/system.confのリミット設定確認
+    - name: Check systemd limits in /etc/systemd/system.conf
+      ansible.builtin.command:
+        cmd: grep -E 'DefaultLimitNOFILE=131072' /etc/systemd/system.conf
+      register: systemd_limit_check
+      failed_when: systemd_limit_check.rc != 0
+
+    - name: Assert that systemd limits are set correctly
+      ansible.builtin.assert:
+        that:
+          - systemd_limit_check.rc == 0
+
+    # 6. /etc/sysctl.confのバックアップ確認
+    - name: Check if /etc/sysctl.conf.org exists
+      ansible.builtin.stat:
+        path: /etc/sysctl.conf.org
+      register: sysctl_conf_backup_check
+
+    - name: Assert that /etc/sysctl.conf.org exists
+      ansible.builtin.assert:
+        that:
+          - sysctl_conf_backup_check.stat.exists
+
+    # 7. inotify設定確認
+    - name: Check inotify watches limit in /etc/sysctl.conf
+      ansible.builtin.command:
+        cmd: grep -E '^fs\.inotify\.max_user_watches = 819200' /etc/sysctl.conf
+      register: inotify_limit_check
+      failed_when: inotify_limit_check.rc != 0
+
+    - name: Assert that inotify watches limit is set correctly
+      ansible.builtin.assert:
+        that:
+          - inotify_limit_check.rc == 0
+
+    # 8. sysctl設定が適用されているか確認
+    - name: Check if sysctl settings are applied
+      ansible.builtin.command: sysctl fs.inotify.max_user_watches
+      register: sysctl_applied_check
+      failed_when: sysctl_applied_check.rc != 0
+
+    - name: Assert that sysctl settings are applied correctly
+      ansible.builtin.assert:
+        that:
+          - "'fs.inotify.max_user_watches = 819200' in sysctl_applied_check.stdout"

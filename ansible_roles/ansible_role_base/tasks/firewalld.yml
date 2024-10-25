@@ -1,0 +1,59 @@
+- name: Update package manager cache and install dependencies
+  block:
+    - name: Ensure package cache is up-to-date
+      ansible.builtin.dnf:
+        update_cache: true
+      register: update_check
+      changed_when: update_check.changed
+
+    - name: Run system update if updates are available
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      when: update_check.changed
+
+- name: Ensure firewalld is installed and running
+  block:
+    - name: Ensure firewalld is installed
+      ansible.builtin.dnf:
+        name: firewalld
+        state: present
+
+    - name: Start and enable firewalld service
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+
+- name: Disable SSH service if enabled
+  ansible.builtin.firewalld:
+    service: ssh
+    zone: public
+    permanent: true
+    state: disabled
+
+- name: Configure firewalld rules
+  block:
+    - name: Add rich rules
+      ansible.builtin.firewalld:
+        rich_rule: "rule family='ipv4' source address='{{ item.address }}' port protocol='tcp' port='{{ item.port }}' accept"
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ rich_rules }}"
+
+    - name: Add HTTP service
+      ansible.builtin.firewalld:
+        service: http
+        zone: public
+        permanent: true
+        state: enabled
+
+    - name: Add HTTPS service
+      ansible.builtin.firewalld:
+        service: https
+        zone: public
+        permanent: true
+        state: enabled
+  notify: Reload firewalld

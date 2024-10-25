@@ -1,0 +1,53 @@
+---
+- name: Disable seccomp for chronyd in Docker environment
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/chronyd.service.d/override.conf
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/sbin/chronyd -F 0
+    mode: "0644"
+  when: "'container' in virtualization_info.ansible_facts.ansible_virtualization_type or 'docker' in virtualization_info.ansible_facts.ansible_virtualization_tech_guest"
+  notify: Reload systemd
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: "'container' in virtualization_info.ansible_facts.ansible_virtualization_type or 'docker' in virtualization_info.ansible_facts.ansible_virtualization_tech_guest"
+  notify: Restart chronyd service # ハンドラーでサービス再起動を通知
+
+- name: Enable and start chronyd service
+  ansible.builtin.systemd:
+    name: chronyd
+    enabled: yes
+    state: started
+
+- name: Check chrony sources
+  ansible.builtin.command: chronyc sources
+  register: chrony_output
+<<<<<<< HEAD
+  ignore_errors: yes  # エラーが発生しても次のタスクに進める
+  changed_when: false  # 冪等性を考慮して常に変更なしとする
+=======
+  ignore_errors: yes # エラーが発生しても次のタスクに進める
+  changed_when: false # 冪等性を考慮して常に変更なしとする
+>>>>>>> release/v0.5
+
+- name: Handle chronyc sources error if "503 No such source"
+  ansible.builtin.debug:
+    msg: "503 No such source detected, proceeding without failure."
+  when: chrony_output.rc != 0 and "503 No such source" in chrony_output.stdout
+<<<<<<< HEAD
+  changed_when: false  # 冪等性を保つために変更なしにする
+=======
+  changed_when: false # 冪等性を保つために変更なしにする
+>>>>>>> release/v0.5
+
+- name: Fail if chronyc sources failed for other reasons
+  ansible.builtin.fail:
+    msg: "Chronyc sources check failed with unexpected error: {{ chrony_output.stdout }}"
+  when: chrony_output.rc != 0 and "503 No such source" not in chrony_output.stdout
+
+- name: Display chrony sources output
+  ansible.builtin.debug:
+    var: chronyc_sources_output.stdout

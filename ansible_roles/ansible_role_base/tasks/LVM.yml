@@ -1,0 +1,104 @@
+---
+- name: Update package manager cache and install dependencies
+  block:
+    - name: Ensure package cache is up-to-date
+      ansible.builtin.dnf:
+        update_cache: true
+      register: update_check
+      changed_when: update_check.changed
+
+    - name: Run system update if updates are available
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      when: update_check.changed
+
+- name: Install LVM package
+  ansible.builtin.dnf:
+    name: lvm2
+    state: present
+
+- name: Create swap directory
+  ansible.builtin.file:
+    path: /var/swap
+    state: directory
+
+- name: Check if swap file already exists
+  ansible.builtin.stat:
+    path: /var/swap/swapfile
+  register: swap_file_check
+
+- name: Create swap file
+  ansible.builtin.command: dd if=/dev/zero of=/var/swap/swapfile bs=1M count=2048
+  args:
+    creates: /var/swap/swapfile # スワップファイルが存在する場合はスキップ
+  ignore_errors: yes
+
+- name: Set up swap space
+  ansible.builtin.command: mkswap /var/swap/swapfile
+  when: not swap_file_check.stat.exists # スワップファイルが存在しない場合のみ実行
+
+- name: Set permissions for swap file
+  ansible.builtin.file:
+    path: /var/swap/swapfile
+    mode: "0600"
+  when: swap_file_check.stat.exists # スワップファイルが存在する場合のみ実行
+
+- name: Enable swap file
+  ansible.builtin.command: swapon /var/swap/swapfile
+  when: ansible_swaptotal_mb < 2048 and not swap_file_check.stat.exists # スワップが2048MB未満かつスワップファイルが未作成の場合に実行
+
+- name: Ensure swap file is in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/var/swap/swapfile swap swap defaults 0 0"
+    state: present
+
+- name: Create physical volumes
+  ansible.builtin.lvg:
+    vg: VgData
+    pvs: "{{ lvm_pvs }}" # defaults/main.ymlで定義した変数を使用
+  when: lvm_pvs is defined and lvm_pvs | length > 0 # 変数が定義されている場合のみ実行
+
+- name: Check if logical volume already exists
+  ansible.builtin.command: lvdisplay /dev/VgData/LvData
+  register: lv_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Create logical volume
+  ansible.builtin.lvol:
+    vg: VgData
+    lv: LvData
+    size: 100%FREE
+    state: present
+  when: lv_check.rc != 0 # 論理ボリュームが存在しない場合に実行
+
+- name: Check if logical volume is mounted
+  ansible.builtin.shell: "mount | grep /var/www"
+  register: lv_mount_check
+  changed_when: false
+  ignore_errors: yes
+
+- block:
+    - name: Format logical volume with XFS
+      ansible.builtin.command: mkfs.xfs /dev/VgData/LvData
+
+    - name: Create mount point
+      ansible.builtin.file:
+        path: /var/www
+        state: directory
+
+    - name: Mount logical volume
+      ansible.builtin.mount:
+        path: /var/www
+        src: /dev/VgData/LvData
+        fstype: xfs
+        state: mounted
+
+    - name: Ensure logical volume is in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/dev/VgData/LvData /var/www xfs defaults 0 0"
+        state: present
+  when: lv_mount_check.rc != 0 # 論理ボリュームがマウントされていない場合に実行

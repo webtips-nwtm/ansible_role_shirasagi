@@ -1,0 +1,57 @@
+---
+- name: Verify SSH and Chrony configuration and services
+  hosts: all
+  become: true
+  tasks:
+    # SSH configuration checks
+    - name: Verify UseDNS is set to no in SSH config
+      ansible.builtin.command: grep -E '^UseDNS no' /etc/ssh/sshd_config.d/custom.conf
+      register: ssh_use_dns
+      ignore_errors: true
+
+    - name: Assert that UseDNS is set to no
+      ansible.builtin.assert:
+        that:
+          - ssh_use_dns.rc == 0
+
+    - name: Verify PermitRootLogin is set to without-password
+      ansible.builtin.command: grep -E '^PermitRootLogin without-password' /etc/ssh/sshd_config.d/custom.conf
+      register: ssh_permit_root
+      ignore_errors: true
+
+    - name: Assert that PermitRootLogin is set correctly
+      ansible.builtin.assert:
+        that:
+          - ssh_permit_root.rc == 0
+
+    - name: Verify SSH service is running
+      ansible.builtin.systemd:
+        name: sshd
+        state: started
+
+    # Chrony configuration checks
+    - name: Verify NTP servers are set in chrony.conf
+      ansible.builtin.command: grep -E '^pool ntp.nict.jp|pool ntp.jst.mfeed.ad.jp' /etc/chrony.conf
+      register: chrony_ntp_check
+      ignore_errors: true
+
+    - name: Assert that NTP servers are set correctly
+      ansible.builtin.assert:
+        that:
+          - chrony_ntp_check.rc == 0
+
+    - name: Verify Chrony service is running
+      ansible.builtin.systemd:
+        name: chronyd
+        state: started
+
+    # Chrony sources check
+    - name: Check chrony sources
+      ansible.builtin.command: chronyc sources
+      register: chrony_sources_output
+      ignore_errors: true
+
+    - name: Assert that chrony sources command succeeded
+      ansible.builtin.assert:
+        that:
+          - chrony_sources_output.rc == 0
