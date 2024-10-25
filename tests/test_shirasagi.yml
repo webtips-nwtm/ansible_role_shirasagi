@@ -4,7 +4,7 @@
   gather_facts: false
   tasks:
     - name: Check if EPEL repo is installed
-      ansible.builtin.shell: yum repolist enabled | grep epel
+      ansible.builtin.shell: dnf repolist enabled | grep epel
       register: epel_check
       changed_when: false
       failed_when: epel_check.rc != 0

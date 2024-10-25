@@ -1,0 +1,19 @@
+- name: Load variables from vars file
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../vars/servers.yml"
+
+- name: Replace hyphen with underscore in server_hostname
+  ansible.builtin.set_fact:
+    modified_server_hostname: "{{ server_hostname | replace('-', '_') }}"
+
+- name: Debug to show modified server_hostname
+  ansible.builtin.debug:
+    var: modified_server_hostname
+
+- name: Update MongoDB database name in production environment
+  ansible.builtin.lineinfile:
+    path: "/var/www/shirasagi/config/mongoid.yml"
+    regexp: '^(\s*database:\s*)ss'
+    line: '\1{{ new_database_name }}'
+    backrefs: yes
+  when: ansible_env == "production"
