@@ -1,0 +1,81 @@
+---
+- name: Configure MongoDB repository
+  block:
+    - name: Set architecture variable
+      ansible.builtin.set_fact:
+        architecture: "{{ ansible_architecture }}"
+      when: ansible_os_family == "RedHat"
+
+    - name: Add MongoDB repository for RedHat
+      ansible.builtin.yum_repository:
+        name: "mongodb-org-{{ mongodb_version }}"
+        description: "MongoDB Repository"
+        baseurl: "https://repo.mongodb.org/yum/redhat/9/mongodb-org/{{ mongodb_version }}/{{ architecture }}/"
+        gpgcheck: yes
+        enabled: yes
+        gpgkey: "https://www.mongodb.org/static/pgp/server-{{ mongodb_version }}.asc"
+      when: ansible_os_family == "RedHat"
+
+- name: Install MongoDB
+  ansible.builtin.package:
+    name: "mongodb-org"
+    state: present
+
+- name: Set backup file name to mongod.service.org
+  ansible.builtin.set_fact:
+    backup_file: "/usr/lib/systemd/system/mongod.service.org"
+
+- name: Check if a .org backup file already exists
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/mongod.service.org
+  register: backup_file_stat
+
+- name: Backup the existing mongod.service file
+  ansible.builtin.copy:
+    src: /usr/lib/systemd/system/mongod.service
+    dest: /usr/lib/systemd/system/mongod.service.org
+    remote_src: yes
+    backup: no
+  when: not backup_file_stat.stat.exists
+  changed_when: false # 冪等性のため変更なしと見なす
+
+- name: Check if we have write permissions to the backup file
+  ansible.builtin.stat:
+    path: "{{ backup_file }}"
+  register: file_permission_check
+  when: backup_file_stat.stat.exists
+
+- name: Remove existing .org backup file if it exists and we have write permissions
+  ansible.builtin.file:
+    path: "{{ backup_file }}"
+    state: absent
+  when:
+    - backup_file_stat.stat.exists
+    - file_permission_check.stat.mode is defined
+    - "'w' in file_permission_check.stat.mode"
+  become: true
+
+- name: Ensure OOMScoreAdjust is set in mongod.service
+  ansible.builtin.lineinfile:
+    path: /usr/lib/systemd/system/mongod.service
+    line: "OOMScoreAdjust=-1000"
+    insertafter: '^\\[Service\\]'
+
+- name: Reload systemd to apply changes
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Check if MongoDB is running
+  command: systemctl is-active mongod
+  register: mongodb_status
+  changed_when: false
+  failed_when: mongodb_status.rc != 0 and mongodb_status.stdout not in ["inactive", "failed"]
+
+- name: Ensure MongoDB is running
+  ansible.builtin.systemd:
+    name: mongod
+    state: started
+    enabled: true
+  register: mongodb_service_status
+  changed_when: mongodb_service_status.status.ActiveState != 'active'
+  failed_when: mongodb_service_status.failed
