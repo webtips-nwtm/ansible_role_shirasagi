@@ -1,4 +1,82 @@
 ---
+# SSHサーバーのインストールmolecule用
+- name: Check if running inside Docker
+  ansible.builtin.setup:
+    filter: ansible_virtualization*
+  register: virtualization_info
+
+- name: Install OpenSSH server
+  ansible.builtin.dnf:
+    name: openssh-server
+    state: present
+  when: "'container' in virtualization_info.ansible_facts.ansible_virtualization_type or 'docker' in virtualization_info.ansible_facts.ansible_virtualization_tech_guest"
+
+# SSH Configuration
+- name: Create custom SSH configuration file in /etc/ssh/sshd_config.d
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/custom.conf
+    content: |
+      UseDNS no
+      PermitRootLogin without-password
+      PasswordAuthentication yes
+      AllowUsers root wtuser
+      PubkeyAuthentication yes
+      AuthorizedKeysFile .ssh/authorized_keys
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart SSH service
+
+# Chrony Configuration
+- name: Install chrony package
+  ansible.builtin.dnf:
+    name: chrony
+    state: present
+
+- name: Backup chrony.conf with timestamp preserved and .org extension if not already backed up
+  ansible.builtin.stat:
+    path: /etc/chrony.conf.org
+  register: chrony_backup
+
+- name: Backup chrony.conf only if backup does not exist
+  ansible.builtin.copy:
+    src: /etc/chrony.conf
+    dest: /etc/chrony.conf.org
+    remote_src: yes
+    backup: yes
+  when: not chrony_backup.stat.exists
+
+- name: Preserve timestamp for chrony.conf.org
+  ansible.builtin.command: touch -r /etc/chrony.conf /etc/chrony.conf.org
+  when: not chrony_backup.stat.exists
+
+- name: Check if chrony.conf needs updating
+  ansible.builtin.command: grep -E '^pool (ntp.nict.jp|ntp.jst.mfeed.ad.jp)' /etc/chrony.conf
+  register: chrony_conf_check
+  ignore_errors: true # これでエラーを無視
+  changed_when: false # このタスクで変更が発生したと見なさない
+  failed_when: false # タスクが失敗したと見なさない
+
+- name: Update chrony.conf with specific NTP servers if needed
+  ansible.builtin.replace:
+    path: /etc/chrony.conf
+    regexp: "^pool .*"
+    replace: |
+      pool ntp.nict.jp iburst
+      pool ntp.jst.mfeed.ad.jp iburst
+    backup: yes
+  when: chrony_conf_check.rc != 0
+  notify: Restart chronyd service
+
+- name: Create directory for chronyd override configuration
+  ansible.builtin.file:
+    path: /etc/systemd/system/chronyd.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'container' in virtualization_info.ansible_facts.ansible_virtualization_type or 'docker' in virtualization_info.ansible_facts.ansible_virtualization_tech_guest"
+
 - name: Disable seccomp for chronyd in Docker environment
   ansible.builtin.copy:
     dest: /etc/systemd/system/chronyd.service.d/override.conf
@@ -25,23 +103,14 @@
 - name: Check chrony sources
   ansible.builtin.command: chronyc sources
   register: chrony_output
-<<<<<<< HEAD
-  ignore_errors: yes  # エラーが発生しても次のタスクに進める
-  changed_when: false  # 冪等性を考慮して常に変更なしとする
-=======
   ignore_errors: yes # エラーが発生しても次のタスクに進める
   changed_when: false # 冪等性を考慮して常に変更なしとする
->>>>>>> release/v0.5
 
 - name: Handle chronyc sources error if "503 No such source"
   ansible.builtin.debug:
     msg: "503 No such source detected, proceeding without failure."
   when: chrony_output.rc != 0 and "503 No such source" in chrony_output.stdout
-<<<<<<< HEAD
-  changed_when: false  # 冪等性を保つために変更なしにする
-=======
   changed_when: false # 冪等性を保つために変更なしにする
->>>>>>> release/v0.5
 
 - name: Fail if chronyc sources failed for other reasons
   ansible.builtin.fail:
