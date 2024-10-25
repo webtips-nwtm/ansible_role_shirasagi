@@ -17,11 +17,11 @@ jobs:
       matrix:
         ansible-version: [2.9, 2.10, 2.11]
         python-version: [3.8, 3.9, 3.10]
-        role: [base_role, shirasagi_role] # テスト対象のAnsibleロールを指定
+        role: [ansible_role_base, ansible_role_shirasagi]
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -41,10 +41,10 @@ jobs:
       - name: Run Molecule test for ${{ matrix.role }}
         run: |
           cd ansible_roles/${{ matrix.role }}
-          molecule test
+          MOLECULE_DESTROY=never molecule test
 
       - name: Upload Molecule Logs for ${{ matrix.role }}
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: molecule-logs-${{ matrix.role }}
