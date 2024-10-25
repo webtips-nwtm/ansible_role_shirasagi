@@ -1,0 +1,78 @@
+name: Molecule Test
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v3 # 最新バージョンに更新
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4 # 最新バージョンに更新
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v3 # 最新バージョンに更新
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt  # 依存関係を一度にインストール
+
+      - name: Install required Ansible collections
+        run: |
+          ansible-galaxy collection install community.general
+
+      - name: Test with molecule
+        run: |
+          molecule test  # ルートディレクトリで実行
+
+      - name: Docker Cleanup
+        run: |
+          docker system prune -f --volumes  # 使っていないDockerリソースをクリーンアップ
+          docker network prune -f            # 不要なDockerネットワークを削除
+          docker container prune -f          # 停止したコンテナを削除
+          docker volume prune -f             # 未使用のボリュームを削除
+
+  #  release:
+  #    if: github.ref == 'refs/heads/main' # mainブランチの場合のみ実行
+  #    needs: build # buildジョブが成功した後に実行
+  #    runs-on: ubuntu-latest
+  #    steps:
+  #      - uses: actions/checkout@v3
+  #
+  #      - name: Ansible Galaxy release
+  #        id: galaxy_release
+  #        uses: robertdebock/galaxy-action@1.2.0
+  #        with:
+  #          galaxy_api_key: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
+  #          git_branch: ${{ github.ref_name }} # タグ名をブランチとして使用
+  #          github_user: ${{ secrets.MY_GITHUB_USERNAME }}
+  #          github_repo: ${{ github.repository }}
+  #          github_token: ${{ secrets.GALAXY_API_KEY2 }}
+  #
+  #      - name: Check for errors during Ansible Galaxy release
+  #        if: steps.galaxy_release.outcome == 'failure'
+  #        run: |
+  #          echo "Ansible Galaxy release failed. Please check the logs for details."
+  #          exit 1
+  #

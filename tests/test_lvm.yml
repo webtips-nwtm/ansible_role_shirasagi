@@ -1,0 +1,61 @@
+---
+- name: Test swap setup and logical volume creation
+  hosts: all
+  become: true
+  tasks:
+    - name: Check if swap file exists
+      ansible.builtin.stat:
+        path: /var/swap/swapfile
+      register: swap_file_check
+
+    - name: Check if LVM package is installed
+      ansible.builtin.command: rpm -q lvm2
+      register: lvm_check
+      changed_when: false
+
+    - name: Check if logical volume exists
+      ansible.builtin.command: lvdisplay /dev/VgData/LvData
+      register: lv_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check if logical volume is mounted
+      ansible.builtin.shell: "mount | grep /var/www"
+      register: lv_mount_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Assert swap file was created
+      ansible.builtin.assert:
+        that:
+          - swap_file_check.stat.exists
+        fail_msg: "Swap file was not created!"
+
+    - name: Assert LVM package is installed
+      ansible.builtin.assert:
+        that:
+          - lvm_check.rc == 0
+        fail_msg: "LVM package is not installed!"
+
+    - name: Assert logical volume was created
+      ansible.builtin.assert:
+        that:
+          - lv_check.rc == 0
+        fail_msg: "Logical volume was not created!"
+
+    - name: Assert logical volume is mounted
+      ansible.builtin.assert:
+        that:
+          - lv_mount_check.rc == 0
+        fail_msg: "Logical volume is not mounted!"
+
+    - name: Check if swap is enabled
+      ansible.builtin.command: swapon --show
+      register: swap_check
+      changed_when: false
+
+    - name: Assert swap is enabled
+      ansible.builtin.assert:
+        that:
+          - swap_check.stdout | length > 0
+        fail_msg: "Swap is not enabled!"

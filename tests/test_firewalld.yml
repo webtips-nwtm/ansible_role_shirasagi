@@ -1,0 +1,59 @@
+---
+- name: Verify firewalld configuration and services
+  hosts: all
+  become: true
+  tasks:
+    # 1. Firewalld installation check
+    - name: Check if firewalld is installed
+      ansible.builtin.package_facts:
+      register: firewalld_package
+
+    - name: Assert that firewalld is installed
+      ansible.builtin.assert:
+        that:
+          - "'firewalld' in ansible_facts.packages"
+
+    # 2. SSH service check
+    - name: Check if SSH service is disabled in firewalld
+      ansible.builtin.command: firewall-cmd --list-services --zone=public
+      register: firewalld_services
+      changed_when: false
+
+    - name: Assert that SSH service is disabled
+      ansible.builtin.assert:
+        that:
+          - "'ssh' not in firewalld_services.stdout"
+
+    # 3. HTTP/HTTPS service check
+    - name: Check if HTTP service is enabled in firewalld
+      ansible.builtin.command: firewall-cmd --list-services --zone=public
+      register: firewalld_http
+      changed_when: false
+
+    - name: Assert that HTTP service is enabled
+      ansible.builtin.assert:
+        that:
+          - "'http' in firewalld_http.stdout"
+
+    - name: Check if HTTPS service is enabled in firewalld
+      ansible.builtin.command: firewall-cmd --list-services --zone=public
+      register: firewalld_https
+      changed_when: false
+
+    - name: Assert that HTTPS service is enabled
+      ansible.builtin.assert:
+        that:
+          - "'https' in firewalld_https.stdout"
+
+    # 4. Rich rules check
+    - name: Check if rich rules are applied
+      ansible.builtin.command: firewall-cmd --list-rich-rules --zone=public
+      register: firewalld_rich_rules
+      changed_when: false
+
+    - name: Assert that rich rules are applied correctly
+      ansible.builtin.assert:
+        that:
+          - '''rule family="ipv4" source address="153.122.65.58"'' in firewalld_rich_rules.stdout'
+          - '''rule family="ipv4" source address="110.5.18.212"'' in firewalld_rich_rules.stdout'
+          - '''rule family="ipv4" source address="117.102.177.45"'' in firewalld_rich_rules.stdout'

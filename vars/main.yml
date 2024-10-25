@@ -1,0 +1,6 @@
+---
+#ssh.yml setting
+rich_rules:
+  - { address: "153.122.65.58", port: "22" } # bastion server
+  - { address: "110.5.18.212", port: "22" } # office 1
+  - { address: "117.102.177.45", port: "22" } # office 2

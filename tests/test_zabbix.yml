@@ -1,0 +1,47 @@
+---
+- name: Verify Zabbix Agent2 installation and configuration
+  hosts: all
+  become: yes
+  tasks:
+    # 1. Zabbix Agent2のインストール確認
+    - name: Check if Zabbix Agent2 is installed
+      ansible.builtin.command: rpm -q zabbix-agent2
+      register: zabbix_agent2_installed
+      failed_when: zabbix_agent2_installed.rc != 0
+      changed_when: false
+
+    # 2. Zabbix Agent2設定ファイルの内容確認
+    - name: Check if Zabbix Agent2 configuration is correct
+      ansible.builtin.command: cat /etc/zabbix/zabbix_agent2.conf
+      register: zabbix_agent2_conf
+      changed_when: false
+
+    - name: Validate Zabbix Agent2 server configuration
+      ansible.builtin.assert:
+        that:
+          - "'Server={{ zabbix_server_ip }}' in zabbix_agent2_conf.stdout"
+
+    # 3. Zabbix Agent2が起動しているか確認
+    - name: Check if Zabbix Agent2 service is running
+      ansible.builtin.systemd:
+        name: zabbix-agent2
+        state: started
+
+    # 4. Zabbix Agent2のポートが開いているか確認 (firewalld)
+    - name: Check if Zabbix Agent2 port is open
+      ansible.builtin.command: firewall-cmd --list-ports
+      register: firewalld_ports
+      changed_when: false
+
+    - name: Validate Zabbix Agent2 port is open
+      ansible.builtin.assert:
+        that:
+          - "{{ zabbix_agent_port }}/tcp in firewalld_ports.stdout"
+
+    # 5. EPELリポジトリがZabbixパッケージを除外しているか確認
+    - name: Check if EPEL repository excludes Zabbix packages
+      ansible.builtin.command: grep '^excludepkgs=zabbix\*' /etc/yum.repos.d/epel.repo
+      register: epel_exclude_check
+      failed_when: epel_exclude_check.rc != 0
+      changed_when: false
+      when: epel_repo_file.stat.exists
