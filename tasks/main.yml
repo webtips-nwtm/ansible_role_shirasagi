@@ -15,6 +15,3 @@
 
 - name: Load tasks from nginx.yml
   import_tasks: nginx.yml
-
-- name: Load tasks from custom.yml
-  import_tasks: custom.yml
