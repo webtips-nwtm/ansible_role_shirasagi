@@ -36,4 +36,6 @@ shirasagi_hosts: "www"
 
 #nginx settings
 server_name: "example.jp"
-shirasagi_dir: "shirasagi"
+shirasagi_dir: "/var/www/shirasagi"
+
+server_hostname: "ss-sample"
