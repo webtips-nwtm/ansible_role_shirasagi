@@ -7,7 +7,10 @@
       ansible.builtin.shell: dnf repolist enabled | grep epel
       register: epel_check
       changed_when: false
-      failed_when: epel_check.rc != 0
+
+    - name: Set EPEL installed fact
+      ansible.builtin.set_fact:
+        epel_installed: "{{ epel_check.rc == 0 }}"
 
     - name: Check if ImageMagick is installed
       ansible.builtin.command: rpm -q ImageMagick
