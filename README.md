@@ -25,9 +25,11 @@ shirasagi_repo: "https://github.com/shirasagi/shirasagi.git" # ShirasagiのGit�
 shirasagi_branch: "master" # 使用するブランチ
 ruby_version: "3.0.1" # asdfまたはシステム全体でのRubyバージョン
 mongodb_version: "4.4" # MongoDBのバージョン
+```
 
 プレイブックの例
 
+```yaml
 - hosts: servers
   become: yes
   roles:
@@ -36,23 +38,12 @@ mongodb_version: "4.4" # MongoDBのバージョン
         shirasagi_branch: "stable"
         ruby_version: "3.0.1"
         mongodb_version: "4.4"
+```
 
 ハンドラー
 
-このロールには、以下のサービスを管理するためのハンドラーが含まれています：
+このロールには、以下のサービスを管理するためのハンドラーが含まれています
 
-	•	Restart unicorn.service
-	•	Restart shirasagi-job.service
-	•	Reload firewalld
-
-
-### 説明:
-- **必要条件**: このAnsibleロールを実行するための要件（Ansibleバージョン、対象OS、依存関係）を記載。
-- **変数**: 主要なカスタマイズ可能な変数を説明。
-- **プレイブックの例**: このロールを使用する際のAnsibleプレイブックの例を示しています。
-- **ハンドラー**: このロールで管理するサービスのハンドラーについて記載。
-- **依存関係**: このロールを実行する前に準備が必要なパッケージやサービス。
-- **ライセンスと作者情報**: ロールのライセンス情報と作者の情報。
-
-必要に応じて詳細な内容を追記し、GitHubリポジトリに合わせて調整してください。
-```
+    •	Restart unicorn.service
+    •	Restart shirasagi-job.service
+    •	Reload firewalld
