@@ -1,5 +1,4 @@
 include conf.d/common/drop.conf;
-include conf.d/common/botdrop.conf;
 root {{ shirasagi_dir }}/public/sites/{{ shirasagi_hosts | join('/') ~ '/' }}_/;
 error_page 404 /404.html;
 

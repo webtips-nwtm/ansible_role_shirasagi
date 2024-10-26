@@ -101,16 +101,6 @@
     patterns: "*.yml"
   register: yml_files
 
-# - name: Copy .yml files from config/samples to config
-#   ansible.builtin.copy:
-#     src: "{{ item.path }}"
-#     dest: "{{ shirasagi_dir }}/config/"
-#     remote_src: yes
-#     mode: "0644"
-#     checksum: no
-#   loop: "{{ yml_files.files }}"
-#   when: yml_files.matched > 0
-
 - name: Copy .yml files from config/samples to config
   ansible.builtin.copy:
     src: "{{ item.path }}"
