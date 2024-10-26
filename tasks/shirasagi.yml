@@ -31,7 +31,7 @@
         insertafter: "^#.*baseurl=.*"
         create: yes # ファイルが存在しない場合は作成
         state: present
-      when: epel_repo.stat.exists == true
+      when: epel_repo.stat.exists == false
 
     - name: Ensure EPEL repository includes 'excludepkgs=' line if missing
       ansible.builtin.lineinfile:

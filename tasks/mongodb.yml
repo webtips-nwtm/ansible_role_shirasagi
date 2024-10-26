@@ -1,25 +1,43 @@
 ---
-- name: Configure MongoDB repository
+- name: MongoDB installation block
   block:
-    - name: Set architecture variable
-      ansible.builtin.set_fact:
-        architecture: "{{ ansible_architecture }}"
-      when: ansible_os_family == "RedHat"
+    - name: Ensure wget is installed
+      ansible.builtin.package:
+        name: wget
+        state: present
 
-    - name: Add MongoDB repository for RedHat
+    - name: Check if MongoDB GPG key is already downloaded
+      ansible.builtin.stat:
+        path: "/etc/pki/rpm-gpg/server-{{ mongodb_version }}.asc"
+      register: mongodb_gpg_key
+
+    - name: Download MongoDB GPG key using get_url (ensuring idempotency)
+      ansible.builtin.get_url:
+        url: "https://www.mongodb.org/static/pgp/server-{{ mongodb_version }}.asc"
+        dest: "/etc/pki/rpm-gpg/server-{{ mongodb_version }}.asc"
+        mode: "0644"
+        force: no
+      when: not mongodb_gpg_key.stat.exists
+
+    - name: Import MongoDB GPG key (ensuring idempotency)
+      ansible.builtin.rpm_key:
+        state: present
+        key: /etc/pki/rpm-gpg/server-{{ mongodb_version }}.asc
+
+    - name: Add MongoDB repository
       ansible.builtin.yum_repository:
         name: "mongodb-org-{{ mongodb_version }}"
         description: "MongoDB Repository"
-        baseurl: "https://repo.mongodb.org/yum/redhat/9/mongodb-org/{{ mongodb_version }}/{{ architecture }}/"
+        baseurl: "https://repo.mongodb.org/yum/redhat/9/mongodb-org/{{ mongodb_version }}/{{ ansible_architecture }}/"
         gpgcheck: yes
         enabled: yes
-        gpgkey: "https://www.mongodb.org/static/pgp/server-{{ mongodb_version }}.asc"
-      when: ansible_os_family == "RedHat"
+        gpgkey: file:///etc/pki/rpm-gpg/server-{{ mongodb_version }}.asc"
 
-- name: Install MongoDB
-  ansible.builtin.package:
-    name: "mongodb-org"
-    state: present
+    - name: Install MongoDB
+      ansible.builtin.dnf:
+        name: mongodb-org
+        state: present
+  when: ansible_os_family == "RedHat"
 
 - name: Set backup file name to mongod.service.org
   ansible.builtin.set_fact:
