@@ -1,0 +1,6 @@
+---
+- import_playbook: ../../tests/test_user.yml
+- import_playbook: ../../tests/test_base.yml
+- import_playbook: ../../tests/test_firewalld.yml
+- import_playbook: ../../tests/test_file_descriptor.yml
+- import_playbook: ../../tests/test_zabbix.yml

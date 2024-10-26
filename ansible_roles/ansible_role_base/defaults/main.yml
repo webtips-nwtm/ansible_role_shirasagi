@@ -1,7 +1,0 @@
----
-swap_file_path: "/var/swap"
-lvm_pvs: "/dev/xvdb"
-#zabbix setting
-zabbix_server: "160.16.115.64"
-zabbix_agent_port: 10050
-firewalld_zone: public # Zabbix Agent2のポートを開放するfirewalldのゾーン

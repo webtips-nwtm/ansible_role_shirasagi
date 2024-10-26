@@ -1,0 +1,16 @@
+- name: Load .env file
+  ansible.builtin.command: bash -c "export $(grep -v '^#' .env | xargs)"
+  changed_when: false
+
+- name: Create wtuser with encrypted password (new user)
+  ansible.builtin.user:
+    name: wtuser
+    password: "{{ lookup('env', 'WTUSER_PASSWORD') | password_hash('sha512') }}"
+    update_password: on_create
+  register: wtuser_create_result
+
+- name: Set root password only if wtuser was created or modified
+  ansible.builtin.shell: "echo 'root:{{ lookup('env', 'ROOT_PASSWORD') }}' | chpasswd"
+  when:
+    - ansible_user_id == 'root'
+    - wtuser_create_result.changed

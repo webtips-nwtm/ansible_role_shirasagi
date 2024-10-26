@@ -1,7 +1,0 @@
-- hosts: all
-  become: yes
-  vars_files:
-    - ../vars/servers.yml
-  roles:
-    - role: ansible_role_base
-    - role: ansible_role_shirasagi

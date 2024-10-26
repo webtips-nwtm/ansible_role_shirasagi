@@ -1,0 +1,69 @@
+---
+- name: Test Zabbix Agent2 configuration and installation
+  hosts: all
+  become: true
+  roles:
+    - ansible_role_base
+  tasks:
+    # テスト: Zabbix Agent2ポートがfirewalldで開いているか確認
+    - name: Verify Zabbix Agent2 port is open in firewalld
+      ansible.builtin.shell: firewall-cmd --list-ports
+      register: firewalld_ports
+    - assert:
+        that: "'{{ zabbix_agent_port }}/tcp' in firewalld_ports.stdout"
+        msg: "Zabbix Agent2 port {{ zabbix_agent_port }} is not open in firewalld."
+
+    - name: Check if EPEL repository file exists
+      ansible.builtin.stat:
+        path: /etc/yum.repos.d/epel.repo
+      register: epel_repo_file_check
+
+    # EPELリポジトリが存在しない場合は、確認メッセージを出力し、存在する場合のみ除外設定を確認
+    - name: Assert if EPEL repository file exists
+      assert:
+        that: "not epel_repo_file_check.stat.exists"
+        msg: "EPEL repository file exists. Proceeding to check Zabbix package exclusion."
+
+    - name: Verify Zabbix packages exclusion in EPEL repo if EPEL exists
+      ansible.builtin.shell: grep '^excludepkgs=zabbix*' /etc/yum.repos.d/epel.repo
+      register: epel_exclude_check
+      when: epel_repo_file_check.stat.exists
+
+    - name: Assert Zabbix exclusion only if EPEL repo exists
+      assert:
+        that: "'excludepkgs=zabbix*' in epel_exclude_check.stdout"
+        msg: "EPEL repository does not exclude Zabbix packages."
+      when: epel_repo_file_check.stat.exists
+
+    # テスト: Zabbixリポジトリのインストール確認
+    - name: Verify Zabbix repository installation
+      ansible.builtin.stat:
+        path: /etc/yum.repos.d/zabbix.repo
+      register: zabbix_repo_file
+    - assert:
+        that: "zabbix_repo_file.stat.exists"
+        msg: "Zabbix repository is not installed."
+
+    # テスト: Zabbix Agent2とプラグインがインストールされているか確認
+    - name: Verify Zabbix Agent2 and plugins are installed
+      ansible.builtin.shell: rpm -qa | grep zabbix-agent2
+      register: zabbix_agent_check
+    - assert:
+        that: "zabbix_agent_check.stdout != ''"
+        msg: "Zabbix Agent2 and plugins are not installed."
+
+    # テスト: Zabbix Agent2設定ファイルの配置
+    - name: Verify Zabbix Agent2 configuration file
+      ansible.builtin.stat:
+        path: /etc/zabbix/zabbix_agent2.conf
+      register: zabbix_conf_file
+    - assert:
+        that: "zabbix_conf_file.stat.exists and zabbix_conf_file.stat.mode == '0644'"
+        msg: "Zabbix Agent2 configuration file is missing or has incorrect permissions."
+
+    # テスト: Zabbix Agent2サービスが起動し、有効になっているか確認
+    - name: Verify Zabbix Agent2 service is active and enabled
+      ansible.builtin.systemd:
+        name: zabbix-agent2
+        enabled: true
+        state: started

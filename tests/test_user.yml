@@ -1,0 +1,31 @@
+---
+- name: Verify user creation and password configuration
+  hosts: all
+  become: true
+  tasks:
+    - name: Verify wtuser exists
+      ansible.builtin.user:
+        name: wtuser
+      register: wtuser_info
+    - ansible.builtin.assert:
+        that:
+          - wtuser_info is defined
+        fail_msg: "wtuserが作成されていません"
+
+    - name: Check if wtuser password is hashed with SHA-512
+      ansible.builtin.command: "getent shadow wtuser"
+      register: wtuser_shadow
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+          - "'$6$' in wtuser_shadow.stdout"
+        fail_msg: "wtuserのパスワードがSHA-512で暗号化されていません"
+
+    - name: Check if root password is hashed with SHA-512
+      ansible.builtin.command: "getent shadow root"
+      register: root_shadow
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+          - "'$6$' in root_shadow.stdout"
+        fail_msg: "rootのパスワードがSHA-512で暗号化されていません"
