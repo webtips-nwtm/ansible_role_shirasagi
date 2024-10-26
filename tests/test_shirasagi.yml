@@ -6,6 +6,7 @@
     - name: Check if EPEL repo is installed
       ansible.builtin.shell: dnf repolist enabled | grep epel
       register: epel_check
+      failed_when: false
       changed_when: false
 
     - name: Set EPEL installed fact
